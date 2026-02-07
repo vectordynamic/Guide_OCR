@@ -1,0 +1,2 @@
+Client error '400 Bad Request' for url 'https://api.z.ai/api/paas/v4/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400

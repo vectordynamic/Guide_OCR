@@ -62,6 +62,7 @@ export interface MCQOptions {
     kha: string;
     ga: string;
     gha: string;
+    [key: string]: string; // Allow dynamic key access
 }
 
 export interface Question {

@@ -96,8 +96,8 @@ class GeminiStrategy(OCRStrategy):
         self.client = genai.Client(api_key=self.api_key)
     
     async def process_image(self, image_url: str) -> Dict[str, Any]:
-        """Process image using Gemini 3 Flash with thinking capability"""
-        print(f"Using Google Gemini 3 Flash for OCR: {image_url}")
+        """Process image using Gemini 3 Flash Preview with thinking capability"""
+        print(f"Using Google Gemini 3 Flash Preview for OCR: {image_url}")
         
         try:
             # Prepare the prompt with instructions
@@ -126,11 +126,12 @@ TASK: Extract all questions from this image."""
             ]
             
             # Configure generation settings
+            # NOTE: Temporarily disabled include_thoughts to debug JSON parsing issues
             generate_content_config = types.GenerateContentConfig(
-                temperature=0.15,
-                thinking_config=types.ThinkingConfig(
-                    thinking_level="MEDIUM",
-                ),
+                temperature=0.2,
+                # thinking_config=types.ThinkingConfig(
+                #     include_thoughts=True,
+                # ),
                 media_resolution="MEDIA_RESOLUTION_UNSPECIFIED",
                 response_mime_type="application/json",
             )
@@ -146,12 +147,16 @@ TASK: Extract all questions from this image."""
                     full_response += chunk.text
             
             print(f"Gemini Response received ({len(full_response)} chars)")
+            # Debug: Log first 500 chars of response to diagnose format issues
+            print(f"Response preview: {full_response[:500]}...")
             
             # Parse the JSON response
             return self._parse_json_response(full_response)
             
         except Exception as e:
             print(f"Gemini API Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {
                 "questions": [],
                 "error": f"Gemini API Error: {str(e)}"

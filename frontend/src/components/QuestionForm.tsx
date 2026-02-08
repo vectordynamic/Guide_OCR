@@ -2,7 +2,7 @@
 
 /**
  * QuestionForm Component
- * Editable form for question data with dynamic fields based on type
+ * Visually rich, type-specific form for question data
  */
 import { useState, useEffect } from 'react';
 import { Question, QuestionType, BOARDS } from '@/lib/types';
@@ -16,6 +16,7 @@ interface QuestionFormProps {
 
 export default function QuestionForm({ question, index, onChange, onDelete }: QuestionFormProps) {
     const [isExpanded, setIsExpanded] = useState(true);
+    const [showMetadata, setShowMetadata] = useState(false);
     const [localQuestion, setLocalQuestion] = useState<Question>(question);
 
     useEffect(() => {
@@ -52,242 +53,384 @@ export default function QuestionForm({ question, index, onChange, onDelete }: Qu
         handleChange('sub_questions', subQuestions);
     };
 
+    const addHint = (hint: string) => {
+        if (!hint.trim()) return;
+        const hints = [...(localQuestion.hints || []), hint.trim()];
+        handleChange('hints', hints);
+    };
+
+    const removeHint = (hintIndex: number) => {
+        const hints = (localQuestion.hints || []).filter((_, i) => i !== hintIndex);
+        handleChange('hints', hints);
+    };
+
+    // Check completion status
+    const isComplete = () => {
+        if (!localQuestion.question_text?.trim()) return false;
+        if (localQuestion.type === 'mcq') {
+            return localQuestion.correct_answer &&
+                localQuestion.options?.ka &&
+                localQuestion.options?.kha &&
+                localQuestion.options?.ga &&
+                localQuestion.options?.gha;
+        }
+        return true;
+    };
+
+    // Type-specific colors and icons
+    const typeConfig = {
+        mcq: {
+            color: 'emerald',
+            icon: '✓',
+            label: 'MCQ',
+            bgClass: 'bg-emerald-900/20',
+            borderClass: 'border-emerald-500/30',
+            textClass: 'text-emerald-400'
+        },
+        creative: {
+            color: 'purple',
+            icon: '📝',
+            label: 'CREATIVE',
+            bgClass: 'bg-purple-900/20',
+            borderClass: 'border-purple-500/30',
+            textClass: 'text-purple-400'
+        },
+        short: {
+            color: 'amber',
+            icon: '💬',
+            label: 'SHORT',
+            bgClass: 'bg-amber-900/20',
+            borderClass: 'border-amber-500/30',
+            textClass: 'text-amber-400'
+        }
+    };
+
+    const config = typeConfig[localQuestion.type];
+
     return (
-        <div className="border border-gray-700 rounded-lg bg-gray-800/50 overflow-hidden">
+        <div className={`border ${config.borderClass} rounded-lg ${config.bgClass} overflow-hidden transition-all duration-300 hover:shadow-lg`}>
             {/* Header */}
             <div
-                className="flex items-center justify-between px-4 py-3 bg-gray-800 cursor-pointer"
+                className="flex items-center justify-between px-4 py-3 bg-gray-800/80 backdrop-blur-sm cursor-pointer hover:bg-gray-800"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-blue-400 bg-blue-900/30 px-2 py-1 rounded">
+                    <span className={`text-lg ${config.textClass}`}>{config.icon}</span>
+                    <span className={`text-xs font-bold ${config.textClass} px-3 py-1.5 rounded-full ${config.bgClass} border ${config.borderClass}`}>
+                        {config.label}
+                    </span>
+                    <span className="text-sm font-semibold text-white bg-gray-700 px-2.5 py-1 rounded">
                         Q{index + 1}
                     </span>
-                    <span className={`text-xs px-2 py-1 rounded ${localQuestion.type === 'mcq' ? 'bg-green-900/30 text-green-400' :
-                            localQuestion.type === 'short' ? 'bg-yellow-900/30 text-yellow-400' :
-                                'bg-purple-900/30 text-purple-400'
-                        }`}>
-                        {localQuestion.type.toUpperCase()}
-                    </span>
-                    <span className="text-sm text-gray-300 truncate max-w-[300px]">
-                        {localQuestion.question_text?.substring(0, 50)}...
+                    <span className={`w-2 h-2 rounded-full ${isComplete() ? 'bg-green-400' : 'bg-red-400'}`}
+                        title={isComplete() ? 'Complete' : 'Incomplete'} />
+                    <span className="text-sm text-gray-300 truncate max-w-[400px]">
+                        {localQuestion.question_text?.substring(0, 60) || 'New Question'}...
                     </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <button
                         onClick={(e) => { e.stopPropagation(); onDelete(index); }}
-                        className="text-red-400 hover:text-red-300 text-sm px-2 py-1"
+                        className="text-red-400 hover:text-red-300 text-sm px-3 py-1.5 rounded hover:bg-red-900/20 transition-colors"
                     >
-                        Delete
+                        🗑️ Delete
                     </button>
-                    <span className="text-gray-400">{isExpanded ? '▼' : '▶'}</span>
+                    <span className={`text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}>▼</span>
                 </div>
             </div>
 
             {/* Form Fields */}
             {isExpanded && (
-                <div className="p-4 space-y-4">
-                    {/* Question Type */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-gray-400 mb-1">Type</label>
+                <div className="p-6 space-y-6">
+                    {/* Type Selector & Settings */}
+                    <div className="flex gap-4 items-start">
+                        <div className="flex-1">
+                            <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Question Type</label>
                             <select
                                 value={localQuestion.type}
                                 onChange={(e) => handleChange('type', e.target.value as QuestionType)}
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                                className="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
-                                <option value="mcq">MCQ</option>
-                                <option value="short">Short Question</option>
-                                <option value="creative">Creative Question (CQ)</option>
+                                <option value="mcq">✓ Multiple Choice (MCQ)</option>
+                                <option value="short">💬 Short Question</option>
+                                <option value="creative">📝 Creative Question (CQ)</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-xs font-medium text-gray-400 mb-1">Has Image</label>
+                        <div className="flex-1">
+                            <label className="block text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Has Image?</label>
                             <select
                                 value={localQuestion.has_image ? 'true' : 'false'}
                                 onChange={(e) => handleChange('has_image', e.target.value === 'true')}
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                                className="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
-                                <option value="false">No</option>
-                                <option value="true">Yes</option>
+                                <option value="false">📄 No Image</option>
+                                <option value="true">📷 Has Image</option>
                             </select>
                         </div>
                     </div>
 
                     {/* Question Text */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-1">Question Text</label>
+                        <label className="block text-sm font-semibold text-gray-300 mb-2">
+                            {localQuestion.type === 'creative' ? '📝 Stem Question (Main Question)' : '❓ Question Text'}
+                        </label>
                         <textarea
                             value={localQuestion.question_text || ''}
                             onChange={(e) => handleChange('question_text', e.target.value)}
-                            rows={3}
-                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm resize-none"
+                            rows={4}
+                            className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white text-base leading-relaxed resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter the main question text here..."
                         />
                     </div>
 
-                    {/* Image Description (if has_image) */}
+                    {/* Image Description */}
                     {localQuestion.has_image && (
-                        <div>
-                            <label className="block text-xs font-medium text-gray-400 mb-1">Image Description</label>
+                        <div className="bg-blue-900/10 border border-blue-500/30 rounded-lg p-4">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-blue-400 mb-2">
+                                <span>📷</span> Image Description
+                            </label>
                             <textarea
                                 value={localQuestion.image_description || ''}
                                 onChange={(e) => handleChange('image_description', e.target.value)}
-                                rows={2}
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm resize-none"
-                                placeholder="Describe the diagram or image..."
+                                rows={3}
+                                className="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg text-white text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Describe the diagram, chart, or image shown in the question..."
                             />
                         </div>
                     )}
 
-                    {/* MCQ Options */}
+                    {/* TYPE-SPECIFIC LAYOUTS */}
+
+                    {/* MCQ Layout */}
                     {localQuestion.type === 'mcq' && (
-                        <div className="space-y-2">
-                            <label className="block text-xs font-medium text-gray-400">Options</label>
-                            {['ka', 'kha', 'ga', 'gha'].map((key) => (
-                                <div key={key} className="flex items-center gap-2">
-                                    <span className="w-10 text-sm text-gray-400 font-medium">{key}:</span>
-                                    <input
-                                        type="text"
-                                        value={(localQuestion.options as Record<string, string>)?.[key] || ''}
-                                        onChange={(e) => handleOptionsChange(key, e.target.value)}
-                                        className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                                    />
-                                </div>
-                            ))}
-                            <div className="flex items-center gap-2 mt-2">
-                                <span className="text-xs text-gray-400">Correct Answer:</span>
-                                <select
-                                    value={localQuestion.correct_answer || ''}
-                                    onChange={(e) => handleChange('correct_answer', e.target.value)}
-                                    className="px-3 py-1 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                                >
-                                    <option value="">Select...</option>
-                                    <option value="ka">ka</option>
-                                    <option value="kha">kha</option>
-                                    <option value="ga">ga</option>
-                                    <option value="gha">gha</option>
-                                </select>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-semibold text-gray-300">✓ Answer Options</label>
+                                <span className="text-xs text-gray-500">Click the card to mark as correct answer</span>
+                            </div>
+                            <div className="space-y-3">
+                                {['ka', 'kha', 'ga', 'gha'].map((key) => {
+                                    const isCorrect = localQuestion.correct_answer === key;
+                                    return (
+                                        <div
+                                            key={key}
+                                            onClick={() => handleChange('correct_answer', key)}
+                                            className={`relative group cursor-pointer transition-all duration-200 ${isCorrect
+                                                ? 'bg-emerald-900/30 border-2 border-emerald-500 shadow-lg shadow-emerald-500/20'
+                                                : 'bg-gray-700/30 border-2 border-gray-600 hover:border-gray-500 hover:bg-gray-700/50'
+                                                } rounded-lg p-4`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 ${isCorrect ? 'border-emerald-400 bg-emerald-500/20' : 'border-gray-500 bg-gray-800'
+                                                    }`}>
+                                                    {isCorrect && <span className="text-emerald-400 text-lg">✓</span>}
+                                                </div>
+                                                <span className={`font-bold text-sm ${isCorrect ? 'text-emerald-400' : 'text-gray-400'} min-w-[40px]`}>
+                                                    {key})
+                                                </span>
+                                                <input
+                                                    type="text"
+                                                    value={localQuestion.options?.[key] || ''}
+                                                    onChange={(e) => handleOptionsChange(key, e.target.value)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    placeholder={`Enter option ${key}...`}
+                                                />
+                                            </div>
+                                            {isCorrect && (
+                                                <div className="absolute top-2 right-2 text-xs bg-emerald-500 text-white px-2 py-1 rounded-full">
+                                                    Correct Answer
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
 
-                    {/* Short Question Answer */}
+                    {/* Short Question Layout */}
                     {localQuestion.type === 'short' && (
-                        <div>
-                            <label className="block text-xs font-medium text-gray-400 mb-1">Answer</label>
+                        <div className="bg-gray-700/20 border border-gray-600 rounded-lg p-5">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-amber-400 mb-3">
+                                <span>💡</span> Answer
+                            </label>
                             <textarea
                                 value={localQuestion.answer || ''}
                                 onChange={(e) => handleChange('answer', e.target.value)}
-                                rows={3}
-                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm resize-none"
-                                placeholder="Enter the answer if visible..."
+                                rows={4}
+                                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white text-base leading-relaxed resize-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                placeholder="Enter the answer if visible in the source material..."
                             />
                         </div>
                     )}
 
-                    {/* Creative Question Sub-questions */}
+                    {/* Creative Question Layout */}
                     {localQuestion.type === 'creative' && (
-                        <div className="space-y-2">
-                            <label className="block text-xs font-medium text-gray-400">Sub-questions</label>
-                            {['ka', 'kha', 'ga', 'gha'].map((key, i) => (
-                                <div key={key} className="border border-gray-600 rounded p-2">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <span className="text-sm font-medium text-blue-400">{key}:</span>
-                                    </div>
-                                    <input
-                                        type="text"
-                                        value={localQuestion.sub_questions?.[i]?.text || ''}
-                                        onChange={(e) => handleSubQuestionChange(i, 'text', e.target.value)}
-                                        placeholder="Sub-question text..."
-                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm mb-2"
-                                    />
-                                    <textarea
-                                        value={localQuestion.sub_questions?.[i]?.answer || ''}
-                                        onChange={(e) => handleSubQuestionChange(i, 'answer', e.target.value)}
-                                        placeholder="Answer (if visible)..."
-                                        rows={2}
-                                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm resize-none"
-                                    />
-                                </div>
-                            ))}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 pb-2 border-b border-purple-500/30">
+                                <span className="text-sm font-semibold text-purple-400">📝 Sub-Questions</span>
+                                <span className="text-xs text-gray-500 ml-auto">
+                                    {(localQuestion.sub_questions || []).filter(sq => sq?.text?.trim()).length} / 4 completed
+                                </span>
+                            </div>
+
+                            <div className="space-y-3 pl-4 border-l-2 border-purple-500/30">
+                                {['ka', 'kha', 'ga', 'gha'].map((key, i) => {
+                                    const subQ = localQuestion.sub_questions?.[i] || { index: key, text: '', answer: '' };
+                                    const hasContent = subQ?.text?.trim();
+
+                                    return (
+                                        <div
+                                            key={key}
+                                            className={`relative bg-gray-700/20 border ${hasContent ? 'border-purple-500/40' : 'border-gray-600'
+                                                } rounded-lg p-4 transition-all duration-200`}
+                                        >
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="font-bold text-purple-400 text-sm min-w-[50px]">
+                                                    {key})
+                                                </span>
+                                                {hasContent && (
+                                                    <span className="w-2 h-2 bg-green-400 rounded-full" title="Has content" />
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-3 pl-2">
+                                                <div>
+                                                    <label className="block text-xs text-gray-400 mb-1.5">Question:</label>
+                                                    <input
+                                                        type="text"
+                                                        value={subQ?.text || ''}
+                                                        onChange={(e) => handleSubQuestionChange(i, 'text', e.target.value)}
+                                                        placeholder={`Enter sub-question ${key}...`}
+                                                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs text-gray-400 mb-1.5">Answer (if visible):</label>
+                                                    <textarea
+                                                        value={subQ?.answer || ''}
+                                                        onChange={(e) => handleSubQuestionChange(i, 'answer', e.target.value)}
+                                                        placeholder="Enter answer if available..."
+                                                        rows={2}
+                                                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
 
-                    {/* Metadata */}
-                    <div className="border-t border-gray-700 pt-4">
-                        <label className="block text-xs font-medium text-gray-400 mb-2">Metadata</label>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-xs text-gray-500 mb-1">Board</label>
-                                <input
-                                    type="text"
-                                    list="boards"
-                                    value={localQuestion.metadata?.board || ''}
-                                    onChange={(e) => handleMetadataChange('board', e.target.value)}
-                                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                                    placeholder="Dhaka Board..."
-                                />
-                                <datalist id="boards">
-                                    {BOARDS.map((b) => <option key={b} value={b} />)}
-                                </datalist>
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-500 mb-1">Year</label>
-                                <input
-                                    type="text"
-                                    value={localQuestion.metadata?.exam_year || ''}
-                                    onChange={(e) => handleMetadataChange('exam_year', e.target.value)}
-                                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                                    placeholder="2023"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-500 mb-1">School</label>
-                                <input
-                                    type="text"
-                                    value={localQuestion.metadata?.school_name || ''}
-                                    onChange={(e) => handleMetadataChange('school_name', e.target.value)}
-                                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                                    placeholder="School name..."
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-500 mb-1">Q. Number</label>
-                                <input
-                                    type="text"
-                                    value={localQuestion.metadata?.question_number || ''}
-                                    onChange={(e) => handleMetadataChange('question_number', e.target.value)}
-                                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                                    placeholder="1, 2, 3..."
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Hints */}
+                    {/* Hints Section - Available for all question types */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-400 mb-1">Hints (comma-separated)</label>
+                        <label className="block text-sm font-semibold text-gray-300 mb-2">💡 Hints</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {(localQuestion.hints || []).map((hint, i) => (
+                                <div
+                                    key={i}
+                                    className="group flex items-center gap-2 bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border border-blue-500/40 text-blue-300 px-3 py-1.5 rounded-full text-sm"
+                                >
+                                    <span>{hint}</span>
+                                    <button
+                                        onClick={() => removeHint(i)}
+                                        className="text-blue-400 hover:text-blue-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                         <input
                             type="text"
-                            value={localQuestion.hints?.join(', ') || ''}
-                            onChange={(e) => handleChange('hints', e.target.value.split(',').map(h => h.trim()).filter(Boolean))}
-                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                            placeholder="Hint 1, Hint 2..."
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    addHint(e.currentTarget.value);
+                                    e.currentTarget.value = '';
+                                }
+                            }}
+                            className="w-full px-4 py-2 bg-gray-700/50 border border-gray-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Type a hint and press Enter to add..."
                         />
                     </div>
 
-                    {/* Continues on next page */}
-                    <div className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            id={`continues-${index}`}
-                            checked={localQuestion.continues_on_next_page || false}
-                            onChange={(e) => handleChange('continues_on_next_page', e.target.checked)}
-                            className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500"
-                        />
-                        <label htmlFor={`continues-${index}`} className="text-sm text-yellow-400">
-                            ⚠️ Continues on next page
-                        </label>
+                    {/* Metadata Section - Collapsible */}
+                    <div className="border-t border-gray-700 pt-4">
+                        <button
+                            onClick={() => setShowMetadata(!showMetadata)}
+                            className="flex items-center gap-2 text-sm font-semibold text-gray-400 hover:text-gray-300 transition-colors mb-3"
+                        >
+                            <span className={`transition-transform duration-200 ${showMetadata ? 'rotate-90' : ''}`}>▶</span>
+                            <span>📋 Metadata & Additional Info</span>
+                        </button>
+
+                        {showMetadata && (
+                            <div className="space-y-4 bg-gray-800/30 rounded-lg p-4 border border-gray-700">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1.5">Board</label>
+                                        <input
+                                            type="text"
+                                            list="boards"
+                                            value={localQuestion.metadata?.board || ''}
+                                            onChange={(e) => handleMetadataChange('board', e.target.value)}
+                                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Dhaka Board..."
+                                        />
+                                        <datalist id="boards">
+                                            {BOARDS.map((b) => <option key={b} value={b} />)}
+                                        </datalist>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1.5">Exam Year</label>
+                                        <input
+                                            type="text"
+                                            value={localQuestion.metadata?.exam_year || ''}
+                                            onChange={(e) => handleMetadataChange('exam_year', e.target.value)}
+                                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                            placeholder="2023"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1.5">School Name</label>
+                                        <input
+                                            type="text"
+                                            value={localQuestion.metadata?.school_name || ''}
+                                            onChange={(e) => handleMetadataChange('school_name', e.target.value)}
+                                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                            placeholder="School name..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-500 mb-1.5">Question Number</label>
+                                        <input
+                                            type="text"
+                                            value={localQuestion.metadata?.question_number || ''}
+                                            onChange={(e) => handleMetadataChange('question_number', e.target.value)}
+                                            className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                            placeholder="1, 2, 3..."
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Continues on next page */}
+                                <div className="flex items-center gap-2 pt-2">
+                                    <input
+                                        type="checkbox"
+                                        id={`continues-${index}`}
+                                        checked={localQuestion.continues_on_next_page || false}
+                                        onChange={(e) => handleChange('continues_on_next_page', e.target.checked)}
+                                        className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-2 focus:ring-yellow-500"
+                                    />
+                                    <label htmlFor={`continues-${index}`} className="text-sm text-yellow-400 flex items-center gap-1">
+                                        ⚠️ Continues on next page
+                                    </label>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -30,18 +30,23 @@ export default function ImageViewer({ imageUrl, pageNumber }: ImageViewerProps) 
             </div>
 
             {/* Image Container */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative overflow-hidden">
                 {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-20">
                         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
                     </div>
                 )}
 
                 <TransformWrapper
                     initialScale={1}
-                    minScale={0.5}
-                    maxScale={4}
-                    centerOnInit
+                    minScale={0.3}
+                    maxScale={5}
+                    centerOnInit={true}
+                    wheel={{ step: 0.1 }}
+                    doubleClick={{ disabled: false, mode: 'zoomIn', step: 0.5 }}
+                    panning={{ disabled: false, velocityDisabled: false }}
+                    limitToBounds={false}
+                    centerZoomedOut={true}
                 >
                     {({ zoomIn, zoomOut, resetTransform }) => (
                         <>
@@ -49,37 +54,38 @@ export default function ImageViewer({ imageUrl, pageNumber }: ImageViewerProps) 
                             <div className="absolute top-2 right-2 z-10 flex flex-col gap-1">
                                 <button
                                     onClick={() => zoomIn()}
-                                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm"
+                                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm font-bold shadow-lg"
                                     title="Zoom In"
                                 >
                                     +
                                 </button>
                                 <button
                                     onClick={() => zoomOut()}
-                                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm"
+                                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-sm font-bold shadow-lg"
                                     title="Zoom Out"
                                 >
                                     −
                                 </button>
                                 <button
                                     onClick={() => resetTransform()}
-                                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-xs"
-                                    title="Reset"
+                                    className="p-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-xs shadow-lg"
+                                    title="Reset View"
                                 >
                                     ⟲
                                 </button>
                             </div>
 
                             <TransformComponent
-                                wrapperStyle={{ width: '100%', height: '100%' }}
-                                contentStyle={{ width: '100%', height: '100%' }}
+                                wrapperClass="!w-full !h-full"
+                                contentClass="!w-full !h-full !flex !items-center !justify-center"
                             >
                                 <img
                                     src={imageUrl}
                                     alt={`Page ${pageNumber}`}
-                                    className="max-w-full max-h-full object-contain mx-auto"
+                                    className="w-auto h-auto max-w-full max-h-full object-contain"
                                     onLoad={() => setIsLoading(false)}
                                     onError={() => setIsLoading(false)}
+                                    style={{ display: 'block' }}
                                 />
                             </TransformComponent>
                         </>

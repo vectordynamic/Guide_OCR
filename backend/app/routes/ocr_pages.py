@@ -124,35 +124,46 @@ async def verify_page(page_id: str, data: OCRPageVerify):
         {"$set": update_data}
     )
     
+    # Delete existing questions for this page to prevent duplicates
+    delete_result = await get_questions_collection().delete_many({"page_id": ObjectId(page_id)})
+    questions_deleted = delete_result.deleted_count
+    
     # Create question entries from verified JSON
     questions = data.verified_json.get("questions", [])
     questions_created = 0
     
-    for q in questions:
-        question_doc = {
-            "book_id": page["book_id"],
-            "chapter_id": page["chapter_id"],
-            "page_id": ObjectId(page_id),
-            "type": q.get("type", "short"),
-            "question_text": q.get("question_text", ""),
-            "has_image": q.get("has_image", False),
-            "image_url": q.get("image_url"),
-            "image_description": q.get("image_description"),
-            "options": q.get("options"),
-            "correct_answer": q.get("correct_answer"),
-            "answer": q.get("answer"),
-            "sub_questions": q.get("sub_questions"),
-            "metadata": q.get("metadata", {}),
-            "hints": q.get("hints", []),
-            "spans_pages": [page_id],
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        await get_questions_collection().insert_one(question_doc)
-        questions_created += 1
+    if questions:
+        # Build all question documents
+        question_docs = []
+        for q in questions:
+            question_doc = {
+                "book_id": page["book_id"],
+                "chapter_id": page["chapter_id"],
+                "page_id": ObjectId(page_id),
+                "type": q.get("type", "short"),
+                "question_text": q.get("question_text", ""),
+                "has_image": q.get("has_image", False),
+                "image_url": q.get("image_url"),
+                "image_description": q.get("image_description"),
+                "options": q.get("options"),
+                "correct_answer": q.get("correct_answer"),
+                "answer": q.get("answer"),
+                "sub_questions": q.get("sub_questions"),
+                "metadata": q.get("metadata", {}),
+                "hints": q.get("hints", []),
+                "spans_pages": [page_id],
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            question_docs.append(question_doc)
+        
+        # Insert all questions at once
+        await get_questions_collection().insert_many(question_docs)
+        questions_created = len(question_docs)
     
     return {
         "message": "Page verified successfully",
+        "questions_deleted": questions_deleted,
         "questions_created": questions_created
     }
 

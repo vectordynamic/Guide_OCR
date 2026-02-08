@@ -137,7 +137,7 @@ export default function ChapterDetailPage() {
                     {pages.map((page) => (
                         <Link
                             key={page._id}
-                            href={`/verify/${page._id}`}
+                            href={`/verify?page=${page._id}`}
                             className="group relative bg-gray-800 border border-gray-700 rounded-lg overflow-hidden hover:border-blue-500 transition-colors"
                         >
                             {/* Thumbnail */}

@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { getBook, getChapters } from '@/lib/api';
 import { Book, Chapter } from '@/lib/types';
+import AddChapterModal from '@/components/AddChapterModal';
 
 export default function BookDetailPage() {
     const params = useParams();
@@ -16,6 +17,7 @@ export default function BookDetailPage() {
     const [book, setBook] = useState<Book | null>(null);
     const [chapters, setChapters] = useState<Chapter[]>([]);
     const [loading, setLoading] = useState(true);
+    const [showAddChapter, setShowAddChapter] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -73,22 +75,30 @@ export default function BookDetailPage() {
 
                 {/* Book Header */}
                 <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 mb-8">
-                    <div className="flex items-start gap-6">
-                        <div className="w-24 h-32 bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
-                            {book.cover_image_url ? (
-                                <img src={book.cover_image_url} alt={book.title} className="w-full h-full object-cover rounded-lg" />
-                            ) : (
-                                <span className="text-4xl">📖</span>
-                            )}
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white mb-2">{book.title}</h1>
-                            <p className="text-gray-400 mb-4">{book.subject} • {book.class_name} • {book.author}</p>
-                            <div className="flex gap-6 text-sm text-gray-500">
-                                <span>{book.total_pages} pages</span>
-                                <span>{book.total_chapters} chapters</span>
+                    <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-6">
+                            <div className="w-24 h-32 bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                {book.cover_image_url ? (
+                                    <img src={book.cover_image_url} alt={book.title} className="w-full h-full object-cover rounded-lg" />
+                                ) : (
+                                    <span className="text-4xl">📖</span>
+                                )}
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-white mb-2">{book.title}</h1>
+                                <p className="text-gray-400 mb-4">{book.subject} • {book.class_name} • {book.author}</p>
+                                <div className="flex gap-6 text-sm text-gray-500">
+                                    <span>{book.total_pages} pages</span>
+                                    <span>{book.total_chapters} chapters</span>
+                                </div>
                             </div>
                         </div>
+                        <button
+                            onClick={() => setShowAddChapter(true)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors flex items-center gap-2"
+                        >
+                            <span>+</span> Add Chapter
+                        </button>
                     </div>
                 </div>
 
@@ -126,6 +136,19 @@ export default function BookDetailPage() {
                     ))}
                 </div>
             </div>
+
+            {/* Add Chapter Modal */}
+            {showAddChapter && (
+                <AddChapterModal
+                    bookId={bookId}
+                    nextChapterNum={book.total_chapters + 1}
+                    onClose={() => setShowAddChapter(false)}
+                    onSuccess={() => {
+                        setShowAddChapter(false);
+                        loadData(); // Refresh list
+                    }}
+                />
+            )}
         </main>
     );
 }

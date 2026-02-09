@@ -87,6 +87,36 @@ class R2Storage:
         )
         return [obj["Key"] for obj in response.get("Contents", [])]
 
+    def delete_folder(self, prefix: str) -> int:
+        """
+        Delete all files with the given prefix (simulating folder deletion).
+        Returns number of deleted files.
+        """
+        try:
+            # 1. List objects
+            objects_to_delete = self.list_files(prefix)
+            if not objects_to_delete:
+                return 0
+            
+            # 2. Delete in batches (top 1000 limit per request for delete_objects)
+            # For simplicity, we'll iterate or use delete_objects given the likely scale
+            # boto3 delete_objects takes {'Objects': [{'Key': '...'}, ...]}
+            
+            # Group into chunks of 1000
+            chunk_size = 1000
+            for i in range(0, len(objects_to_delete), chunk_size):
+                chunk = objects_to_delete[i:i + chunk_size]
+                delete_keys = [{'Key': k} for k in chunk]
+                self.client.delete_objects(
+                    Bucket=self.bucket,
+                    Delete={'Objects': delete_keys}
+                )
+            
+            return len(objects_to_delete)
+        except Exception as e:
+            print(f"Error deleting folder {prefix}: {e}")
+            return 0
+
 
 # Singleton instance
 _r2_storage: Optional[R2Storage] = None

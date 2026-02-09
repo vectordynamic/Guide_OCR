@@ -20,6 +20,10 @@ export const uploadPDF = (formData: FormData) =>
         headers: { 'Content-Type': 'multipart/form-data' },
     });
 export const deleteBook = (id: string) => api.delete(`/books/${id}`);
+export const addChapter = (bookId: string, formData: FormData) =>
+    api.post(`/books/${bookId}/chapters`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
 
 // Chapters
 export const getChapters = (bookId: string) => api.get(`/chapters/book/${bookId}`);

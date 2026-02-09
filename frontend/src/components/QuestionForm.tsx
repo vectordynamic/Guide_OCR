@@ -353,15 +353,27 @@ export default function QuestionForm({ question, index, onChange, onDelete }: Qu
                                                 </div>
 
                                                 <div className="space-y-3 pl-2">
-                                                    <div>
-                                                        <label className="block text-xs text-gray-400 mb-1.5">Question:</label>
-                                                        <input
-                                                            type="text"
-                                                            value={subQ?.text || ''}
-                                                            onChange={(e) => handleSubQuestionChange(i, 'text', e.target.value)}
-                                                            placeholder={`Enter sub-question ${key}...`}
-                                                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                                        />
+                                                    <div className="flex gap-4">
+                                                        <div className="flex-1">
+                                                            <label className="block text-xs text-gray-400 mb-1.5">Question:</label>
+                                                            <input
+                                                                type="text"
+                                                                value={subQ?.text || ''}
+                                                                onChange={(e) => handleSubQuestionChange(i, 'text', e.target.value)}
+                                                                placeholder={`Enter sub-question ${key}...`}
+                                                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                                            />
+                                                        </div>
+                                                        <div className="w-24">
+                                                            <label className="block text-xs text-gray-400 mb-1.5">Mark:</label>
+                                                            <input
+                                                                type="number"
+                                                                value={subQ?.mark || ''}
+                                                                onChange={(e) => handleSubQuestionChange(i, 'mark', e.target.value)}
+                                                                placeholder="1"
+                                                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                                            />
+                                                        </div>
                                                     </div>
 
                                                     <div>

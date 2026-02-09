@@ -44,6 +44,8 @@ class OCRStrategy(ABC):
 
         # 1. Try direct parse
         res = attempt_parse(content)
+        if hasattr(res, 'get') is False and isinstance(res, list):
+            return {"questions": res}
         if res: return res
 
         # 2. Extract from Markdown code blocks (regex is safer than startswith)

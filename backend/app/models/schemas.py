@@ -110,6 +110,7 @@ class QuestionMetadata(BaseModel):
 class SubQuestion(BaseModel):
     index: str  # ka, kha, ga, gha
     text: str
+    mark: Optional[int] = None
     answer: Optional[str] = None
     answer_image_url: Optional[str] = None
 

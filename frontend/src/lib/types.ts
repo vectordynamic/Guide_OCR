@@ -54,6 +54,7 @@ export interface QuestionMetadata {
 export interface SubQuestion {
     index: string;
     text: string;
+    mark?: number;
     answer?: string;
     answer_image_url?: string;
 }

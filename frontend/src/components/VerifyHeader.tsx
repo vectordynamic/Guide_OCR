@@ -51,12 +51,23 @@ export default function VerifyHeader() {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* Navigation - uses internal state, NO URL change */}
+                    {/* Actions & Navigation grouped */}
                     <div className="flex items-center gap-2">
+                        {page.ocr_status !== 'verified' && (
+                            <button
+                                onClick={handleProcessOCR}
+                                disabled={processing || pageLoading}
+                                className="px-4 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm disabled:opacity-50 transition-colors h-[30px] flex items-center"
+                            >
+                                {processing ? 'Processing...' : page.ocr_status === 'pending' ? '🔍 Process OCR' : '🔄 Re-process OCR'}
+                            </button>
+                        )}
+
+                        {/* Navigation - uses internal state, NO URL change */}
                         <button
                             onClick={goToPrev}
                             disabled={!prevPage || pageLoading}
-                            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 text-white rounded text-sm transition-colors"
+                            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 text-white rounded text-sm transition-colors h-[30px]"
                         >
                             ← Prev
                         </button>
@@ -66,22 +77,12 @@ export default function VerifyHeader() {
                         <button
                             onClick={goToNext}
                             disabled={!nextPage || pageLoading}
-                            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 text-white rounded text-sm transition-colors"
+                            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-30 text-white rounded text-sm transition-colors h-[30px]"
                         >
                             Next →
                         </button>
                     </div>
 
-                    {/* Actions */}
-                    {page.ocr_status !== 'verified' && (
-                        <button
-                            onClick={handleProcessOCR}
-                            disabled={processing || pageLoading}
-                            className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm disabled:opacity-50 transition-colors"
-                        >
-                            {processing ? 'Processing...' : page.ocr_status === 'pending' ? '🔍 Process OCR' : '🔄 Re-process OCR'}
-                        </button>
-                    )}
                     <button
                         onClick={handleSave}
                         disabled={saving || questions.length === 0 || !hasChanges() || pageLoading}

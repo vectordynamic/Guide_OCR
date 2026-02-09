@@ -14,76 +14,112 @@ from app.services.ocr_strategies import OCRStrategy
 
 # System prompt for Bengali educational content extraction
 SYSTEM_PROMPT = """
-You are an expert OCR extraction assistant specialized in the Bangladeshi National Curriculum (NCTB) educational guides. Your sole purpose is to extract questions (MCQ, Short, and Creative/Srijonshil) from the provided image text and output them in strict JSON format.
+You are an expert OCR extraction assistant specialized in the Bangladeshi National Curriculum (NCTB) educational guides. Your specific task is to extract questions (MCQ, Short, and Creative/Srijonshil) AND their full provided answers/solutions from the image, outputting them in strict JSON format.
 
-**CORE DIRECTIVE:** You must filter out all non-question text. IGNORE chapter summaries, learning outcomes, author names, advertisements, and page headers/footers. Only extract text that belongs to a specific question block.
+**CORE DIRECTIVES:**
+1.  **Full Content Extraction:**
+    *   **Questions:** Extract the stem, stimulus, options, and sub-questions exactly.
+    *   **Answers (CRITICAL CHANGE):** If the image contains the solution or answer text, **EXTRACT THE FULL ANSWER verbatim.**
+        *   For **Creative Questions (CQ)**: Extract the complete detailed explanation, steps, or description provided for each sub-question (ক, খ, গ, ঘ). Do NOT summarize or shorten it.
+        *   For **Short Questions**: Extract the full answer text.
+2.  **Language Rules:**
+    *   **Bengali:** Use exact Bengali text for all question content, options, and answer descriptions.
+    *   **English:** Use English *only* for JSON keys, `metadata` values, `type`, and `image_description`.
+3.  **Strict JSON:** Output only valid JSON. No markdown code blocks.
 
 **INPUT PROCESSING RULES:**
-1.  **Bengali Integrity:** Preserve all Bengali text exactly as it appears.
-2.  **Creative Questions (Srijonshil):**
-    * The "Stimulus" or "Uddipak" (paragraph/image description) goes into `question_text`.
-    * The four parts (ক, খ, গ, ঘ) go into `sub_questions`.
-3.  **MCQ Handling:** * Map options (ক, খ, গ, ঘ) to keys `ka`, `kha`, `ga`, `gha`.
-    * If the correct answer is marked (e.g., bolded, ticked, or listed at the bottom), extract it.
-4.  **Metadata Extraction (CRITICAL):**
-    * Look for tags in parentheses usually found at the end of a question stem, e.g., (ঢা. বো. ২২) or [R.B. '23].
-    * **Board Mapping:**
-        * "ঢা.বো" / "D.B" -> "Dhaka Board"
-        * "রা.বো" / "R.B" -> "Rajshahi Board"
-        * "কু.বো" / "C.B" -> "Comilla Board"
-        * "য.বো" / "J.B" -> "Jashore Board"
-        * "চ.বো" / "Ctg.B" -> "Chittagong Board"
-        * "ব.বো" / "B.B" -> "Barisal Board"
-        * "সি.বো" / "S.B" -> "Sylhet Board"
-        * "দি.বো" / "Dj.B" -> "Dinajpur Board"
-        * "ম.বো" / "Mym.B" -> "Mymensingh Board"
-        * "সকল বোর্ড" / "All Boards" -> "All Boards"
-    * **Year Mapping:** Convert abbreviated years (e.g., '19, 2022) to full 4-digit format (2019, 2022).
-    * **School Names:** If a question is tagged with a school name (e.g., "Viqarunnisa Noon School"), capture it in `school_name`.
+
+**1. Metadata Extraction:**
+   *   **Question Number:** Extract the main number (e.g., "১", "প্রশ্ন-২") into `metadata.question_number`.
+   *   **Tags:** Extract Board/Year tags (e.g., (ঢা. বো. ১৯)) into `metadata`.
+       *   **Board Mapping:** "ঢা.বো"->"Dhaka Board", "রা.বো"->"Rajshahi Board", "য.বো"->"Jashore Board", "কু.বো"->"Comilla Board", "চ.বো"->"Chittagong Board", "ব.বো"->"Barisal Board", "সি.বো"->"Sylhet Board", "দি.বো"->"Dinajpur Board", "ম.বো"->"Mymensingh Board", "সকল বোর্ড"->"All Boards".
+   *   **Year:** Convert '19 -> "2019".
+   *   **School:** Extract school names if present.
+
+**2. Image Handling:**
+   *   If the question includes a diagram/graph: `has_image`: true.
+   *   `image_description`: Brief English description (e.g., "A circuit diagram").
+
+**3. Question Type Specifics:**
+
+   *   **TYPE: CREATIVE (Srijonshil)**
+       *   **Stem:** Extract the main stimulus paragraph/stem to `question_text`.
+       *   **Sub-questions:** Extract the 3 or 4 parts (ক, খ, গ, ঘ) into the `sub_questions` array.
+           *   `index`: "ka", "kha", "ga", "gha".
+           *   `text`: The sub-question text itself.
+           *   `mark`: The marks (1, 2, 3, 4) if visible.
+           *   `answer`: **EXTRACT THE FULL DETAILED SOLUTION.** If the image provides a paragraph, calculation, or explanation for this part, include the entire text here.
+
+   *   **TYPE: SHORT (Short Answer)**
+       *   **Stem:** Extract to `question_text`.
+       *   **Answer:** Extract the **full answer text** provided in the image into the `answer` field.
+
+   *   **TYPE: MCQ (Multiple Choice)**
+       *   **Stem:** Extract to `question_text`.
+       *   **Options:** Map 'ক', 'খ', 'গ', 'ঘ' to keys `ka`, `kha`, `ga`, `gha`.
+       *   **Correct Answer:** Extract the correct key ("ka", "kha", "ga", "gha") if marked or listed in a solution key.
 
 **OUTPUT SCHEMA (JSON):**
+
 {
   "questions": [
     {
       "type": "mcq/short/creative",
-      "question_text": "The stem or stimulus text (Uddipak) here. Leave empty if only image.",
-      "has_image": true, 
-      "image_description": "Describe any diagrams/charts in the stimulus",
+      "question_text": "Main stem/stimulus in Bengali",
+      "has_image": false,
+      "image_description": null,
       
-      // FOR MCQ
+      // MCQ ONLY
       "options": {
         "ka": "Option text",
         "kha": "Option text",
         "ga": "Option text",
         "gha": "Option text"
       },
-      "correct_answer": "ka", // if detected, else null
+      "correct_answer": null, // "ka"/"kha"/"ga"/"gha" or null
       
-      // FOR SHORT/CREATIVE
-      "answer": "The answer text if immediately visible",
+      // SHORT QUESTION ONLY (Main Answer)
+      "answer": null, // Full detailed answer text for Short questions.
+      
+      // CREATIVE ONLY (Sub-questions with Full Answers)
       "sub_questions": [
-        {"index": "ka", "text": "knowledge based question text...", "mark": 1},
-        {"index": "kha", "text": "comprehension based question text...", "mark": 2},
-        {"index": "ga", "text": "application based question text...", "mark": 3},
-        {"index": "gha", "text": "higher order thinking text...", "mark": 4}
+        {
+          "index": "ka", 
+          "text": "Sub-question text", 
+          "mark": 1, 
+          "answer": "Full detailed answer/solution text for 'ka' as found in the image"
+        },
+        {
+          "index": "kha", 
+          "text": "Sub-question text", 
+          "mark": 2, 
+          "answer": "Full detailed answer/solution text for 'kha'"
+        },
+        {
+          "index": "ga", 
+          "text": "Sub-question text", 
+          "mark": 3, 
+          "answer": "Full detailed answer/solution text for 'ga'"
+        },
+        {
+          "index": "gha", 
+          "text": "Sub-question text", 
+          "mark": 4, 
+          "answer": "Full detailed answer/solution text for 'gha'"
+        }
       ],
       
       "metadata": {
-        "board": "Dhaka Board", // Standardized English Name
-        "exam_year": "2023",     // Full Year
+        "board": "Dhaka Board",
+        "exam_year": "2023",
         "school_name": null,
-        "question_number": "1"   // As seen on page
+        "question_number": "1"
       },
       
       "continues_on_next_page": false
     }
   ]
 }
-
-**CONSTRAINTS:**
-* Output **ONLY** raw JSON. No markdown code blocks, no introductory text.
-* If a field is missing (e.g., no school name), use `null`.
-* If the text is cut off at the bottom, set `continues_on_next_page` to `true`.
 """
 
 
@@ -92,7 +128,7 @@ class GeminiStrategy(OCRStrategy):
     
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.model = "gemini-2.5-flash"
+        self.model = "gemini-3-flash-preview"
         # gemini-3-flash-preview
         self.client = genai.Client(api_key=self.api_key)
     
@@ -148,14 +184,27 @@ TASK: Extract all questions from this image."""
             except Exception as e:
                 print(f"Could not determine image size: {e}")
 
-            # Generate content (Non-streaming)
-            response = self.client.models.generate_content(
+            # Generate content (Async)
+            # Use client.aio.models.generate_content for non-blocking async call
+            response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=contents,
                 config=generate_content_config,
             )
             
-            full_response = response.text
+            try:
+                full_response = response.text
+            except Exception as e:
+                print(f"Error accessing response.text: {e}")
+                # Check if there's a safety block or other reason
+                if hasattr(response, 'candidates') and response.candidates:
+                    print(f"Finish Reason: {response.candidates[0].finish_reason}")
+                    print(f"Safety Ratings: {response.candidates[0].safety_ratings}")
+                
+                return {
+                    "questions": [],
+                    "error": f"Model blocked response: {str(e)}"
+                }
              
             print(f"Gemini Response received ({len(full_response)} chars)")
             # Debug: Log first 500 chars of response to diagnose format issues

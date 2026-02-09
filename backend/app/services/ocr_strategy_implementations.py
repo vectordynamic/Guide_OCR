@@ -92,7 +92,8 @@ class GeminiStrategy(OCRStrategy):
     
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.model = "gemini-3-flash-preview"
+        self.model = "gemini-2.5-flash"
+        # gemini-3-flash-preview
         self.client = genai.Client(api_key=self.api_key)
     
     async def process_image(self, image_url: str) -> Dict[str, Any]:
@@ -128,24 +129,34 @@ TASK: Extract all questions from this image."""
             # Configure generation settings
             # NOTE: Temporarily disabled include_thoughts to debug JSON parsing issues
             generate_content_config = types.GenerateContentConfig(
-                temperature=0.2,
+                temperature=0.1,
                 # thinking_config=types.ThinkingConfig(
                 #     include_thoughts=True,
                 # ),
-                media_resolution="MEDIA_RESOLUTION_UNSPECIFIED",
+                media_resolution="MEDIA_RESOLUTION_MEDIUM",
                 response_mime_type="application/json",
             )
             
-            # Generate content with streaming
-            full_response = ""
-            for chunk in self.client.models.generate_content_stream(
+            # Check image size for debugging
+            import httpx
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.head(image_url)
+                    size_bytes = int(resp.headers.get('content-length', 0))
+                    size_mb = size_bytes / (1024 * 1024)
+                    print(f"Image Size: {size_mb:.2f} MB")
+            except Exception as e:
+                print(f"Could not determine image size: {e}")
+
+            # Generate content (Non-streaming)
+            response = self.client.models.generate_content(
                 model=self.model,
                 contents=contents,
                 config=generate_content_config,
-            ):
-                if chunk.text:
-                    full_response += chunk.text
+            )
             
+            full_response = response.text
+             
             print(f"Gemini Response received ({len(full_response)} chars)")
             # Debug: Log first 500 chars of response to diagnose format issues
             print(f"Response preview: {full_response[:500]}...")

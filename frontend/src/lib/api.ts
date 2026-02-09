@@ -40,5 +40,9 @@ export const getQuestions = (params?: { page_id?: string; chapter_id?: string; b
 export const getQuestion = (id: string) => api.get(`/questions/${id}`);
 export const updateQuestion = (id: string, data: object) => api.put(`/questions/${id}`, data);
 export const deleteQuestion = (id: string) => api.delete(`/questions/${id}`);
+export const uploadImage = (formData: FormData) =>
+    api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
 
 export default api;

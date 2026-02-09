@@ -2,7 +2,15 @@
 
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import { getOCRPage, processPageOCR, verifyPage, getChapterPages } from '@/lib/api';
-import { OCRPage, Question, OCRResult } from '@/lib/types';
+import { OCRPage, Question, OCRResult, SubQuestion } from '@/lib/types';
+import { uploadImage } from '@/lib/api';
+
+export interface CropTarget {
+    index: number;
+    subIndex?: number; // For sub-questions
+    type: 'question' | 'sub_question';
+    field: 'image_url' | 'answer_image_url'; // Field to update
+}
 
 interface VerifyContextType {
     // Page data
@@ -32,6 +40,13 @@ interface VerifyContextType {
     currentIndex: number;
     prevPage: OCRPage | null;
     nextPage: OCRPage | null;
+
+    // Cropping
+    cropTarget: CropTarget | null;
+    isCropMode: boolean;
+    startCrop: (target: CropTarget) => void;
+    cancelCrop: () => void;
+    completeCrop: (imageBlob: Blob) => Promise<void>;
 }
 
 const VerifyContext = createContext<VerifyContextType | null>(null);
@@ -58,6 +73,10 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
     const [processing, setProcessing] = useState(false);
     const [saving, setSaving] = useState(false);
 
+    // Crop State
+    const [cropTarget, setCropTarget] = useState<CropTarget | null>(null);
+    const [pendingImages, setPendingImages] = useState<Record<string, Blob>>({});
+
     // Use refs to avoid stale closures and infinite loops
     const currentPageIdRef = useRef<string | null>(null);
     const allPagesRef = useRef<OCRPage[]>([]);
@@ -74,6 +93,13 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
         }
 
         currentPageIdRef.current = pageId;
+
+        // Reset pending images on page load
+        setPendingImages(prev => {
+            // Optional: revoke old URLs if we want to be strict, but they might be used in the UI still if we just switch quickly
+            // For now, simpler to just clear the map so we don't upload old stuff
+            return {};
+        });
 
         try {
             const response = await getOCRPage(pageId);
@@ -125,9 +151,67 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
 
         setSaving(true);
         try {
-            const verifiedJson: OCRResult = { questions };
+            // PROCESS PENDING UPLOADS
+            const currentQuestions = [...questions];
+            let hasUploads = false;
 
-            const continuesQuestion = questions.find(q => q.continues_on_next_page);
+            // Helper to recursively find and replace blob URLs
+            const uploadPendingBlob = async (url: string | undefined): Promise<string | undefined> => {
+                if (!url || !url.startsWith('blob:')) return url;
+
+                const blob = pendingImages[url];
+                if (!blob) return url; // Should not happen
+
+                hasUploads = true;
+                const formData = new FormData();
+                formData.append('file', blob, 'crop.png');
+
+                try {
+                    const res = await uploadImage(formData);
+                    // Revoke local URL to free memory
+                    URL.revokeObjectURL(url);
+                    return res.data.url;
+                } catch (e) {
+                    console.error('Failed to upload blob:', url, e);
+                    throw new Error('Failed to upload some images. Please try saving again.');
+                }
+            };
+
+            // Iterate and replace all image URLs in questions
+            for (let i = 0; i < currentQuestions.length; i++) {
+                const q = { ...currentQuestions[i] };
+
+                // Main Question Images
+                if (q.image_url?.startsWith('blob:')) {
+                    q.image_url = await uploadPendingBlob(q.image_url);
+                }
+                if (q.answer_image_url?.startsWith('blob:')) {
+                    q.answer_image_url = await uploadPendingBlob(q.answer_image_url);
+                }
+
+                // Sub-question Images
+                if (q.sub_questions) {
+                    for (let j = 0; j < q.sub_questions.length; j++) {
+                        const sq = { ...q.sub_questions[j] };
+                        if (sq.answer_image_url?.startsWith('blob:')) {
+                            sq.answer_image_url = await uploadPendingBlob(sq.answer_image_url);
+                        }
+                        q.sub_questions[j] = sq;
+                    }
+                }
+                currentQuestions[i] = q;
+            }
+
+            // If we had uploads, update state with new URLs so UI reflects permanent links
+            if (hasUploads) {
+                setQuestions(currentQuestions);
+                // Clear pending images after successful upload
+                setPendingImages({});
+            }
+
+            const verifiedJson: OCRResult = { questions: currentQuestions };
+
+            const continuesQuestion = currentQuestions.find(q => q.continues_on_next_page);
             const currentIdx = allPages.findIndex(p => p._id === page._id);
             const nextP = currentIdx < allPages.length - 1 ? allPages[currentIdx + 1] : null;
 
@@ -136,7 +220,7 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
                 continues_to_page: continuesQuestion && nextP ? nextP._id : undefined
             });
 
-            setOriginalQuestions(JSON.parse(JSON.stringify(questions)));
+            setOriginalQuestions(JSON.parse(JSON.stringify(currentQuestions)));
             await loadPage(page._id);
             alert('Saved successfully!');
         } catch (error) {
@@ -145,7 +229,7 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
         } finally {
             setSaving(false);
         }
-    }, [page, saving, questions, allPages, loadPage]);
+    }, [page, saving, questions, allPages, loadPage, pendingImages]);
 
     const handleQuestionChange = useCallback((index: number, question: Question) => {
         setQuestions(prev => {
@@ -213,7 +297,58 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             goToPrev,
             currentIndex,
             prevPage,
-            nextPage
+            nextPage,
+            cropTarget,
+            isCropMode: !!cropTarget,
+            startCrop: setCropTarget,
+            cancelCrop: () => setCropTarget(null),
+            completeCrop: async (blob: Blob) => {
+                if (!cropTarget) return;
+
+                try {
+                    // Create local object URL for immediate preview
+                    const localUrl = URL.createObjectURL(blob);
+
+                    // Store blob for later upload
+                    setPendingImages(prev => ({
+                        ...prev,
+                        [localUrl]: blob
+                    }));
+
+                    setQuestions(prev => {
+                        const updated = [...prev];
+                        const q = { ...updated[cropTarget.index] };
+
+                        if (cropTarget.type === 'question') {
+                            // Update main question
+                            if (cropTarget.field === 'image_url') {
+                                q.image_url = localUrl;
+                                q.has_image = true;
+                            } else if (cropTarget.field === 'answer_image_url') {
+                                q.answer_image_url = localUrl;
+                            }
+                        } else if (cropTarget.type === 'sub_question' && typeof cropTarget.subIndex === 'number') {
+                            // Update sub-question
+                            const subQs = [...(q.sub_questions || [])];
+                            if (subQs[cropTarget.subIndex]) {
+                                subQs[cropTarget.subIndex] = {
+                                    ...subQs[cropTarget.subIndex],
+                                    [cropTarget.field]: localUrl
+                                };
+                                q.sub_questions = subQs;
+                            }
+                        }
+
+                        updated[cropTarget.index] = q;
+                        return updated;
+                    });
+
+                    setCropTarget(null);
+                } catch (error) {
+                    console.error('Failed to process crop:', error);
+                    alert('Failed to process image. Please try again.');
+                }
+            }
         }}>
             {children}
         </VerifyContext.Provider>

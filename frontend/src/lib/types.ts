@@ -55,6 +55,7 @@ export interface SubQuestion {
     index: string;
     text: string;
     answer?: string;
+    answer_image_url?: string;
 }
 
 export interface MCQOptions {
@@ -75,6 +76,7 @@ export interface Question {
     options?: MCQOptions;
     correct_answer?: string;
     answer?: string;
+    answer_image_url?: string;
     sub_questions?: SubQuestion[];
     metadata?: QuestionMetadata;
     hints?: string[];

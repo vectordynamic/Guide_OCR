@@ -35,29 +35,44 @@ class OCRStrategy(ABC):
         
         content = content.strip()
         
-        # Try direct JSON parse first
-        try:
-            return json.loads(content)
-        except json.JSONDecodeError:
-            pass
-        
-        # Remove markdown code blocks
-        if content.startswith("```"):
-            content = re.sub(r'^```(?:json)?\s*', '', content)
-            content = re.sub(r'\s*```$', '', content)
-            content = content.strip()
+        # Helper to attempt parse
+        def attempt_parse(text):
             try:
-                return json.loads(content)
+                return json.loads(text)
             except json.JSONDecodeError:
-                pass
+                return None
+
+        # 1. Try direct parse
+        res = attempt_parse(content)
+        if res: return res
+
+        # 2. Extract from Markdown code blocks (regex is safer than startswith)
+        # Matches ```json ... ``` or just ``` ... ```
+        # We find ALL matches and try them, just in case the first one isn't the JSON
+        code_block_pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
+        matches = re.findall(code_block_pattern, content)
+        for match in matches:
+            res = attempt_parse(match)
+            if res: return res
         
-        # Extract JSON object from surrounding text
-        json_match = re.search(r'\{[\s\S]*\}', content)
-        if json_match:
-            try:
-                return json.loads(json_match.group(0))
-            except json.JSONDecodeError:
-                pass
+        # 3. Extract purely between first { and last }
+        # This handles text before/after
+        json_pattern = r"\{[\s\S]*\}"
+        match = re.search(json_pattern, content)
+        if match:
+            found_json = match.group(0)
+            res = attempt_parse(found_json)
+            if res: return res
+            
+            # 3.1 Try repairing the found JSON block
+            repaired = self._repair_truncated_json(found_json)
+            res = attempt_parse(repaired)
+            if res: return res
+
+        # 4. Fallback: Try repairing the original content
+        repaired = self._repair_truncated_json(content)
+        res = attempt_parse(repaired)
+        if res: return res
         
         # If all fails, return error format
         print(f"Failed to parse JSON. Content preview: {content[:200]}...")

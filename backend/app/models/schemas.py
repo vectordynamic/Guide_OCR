@@ -111,6 +111,7 @@ class SubQuestion(BaseModel):
     index: str  # ka, kha, ga, gha
     text: str
     answer: Optional[str] = None
+    answer_image_url: Optional[str] = None
 
 
 class MCQOptions(BaseModel):
@@ -136,6 +137,7 @@ class QuestionCreate(BaseModel):
     
     # Short Question
     answer: Optional[str] = None
+    answer_image_url: Optional[str] = None
     
     # Creative Question
     sub_questions: Optional[List[SubQuestion]] = None

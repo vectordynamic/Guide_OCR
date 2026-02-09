@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection
-from app.routes import books, chapters, ocr_pages, questions
+from app.routes import books, chapters, ocr_pages, questions, upload
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -36,6 +36,7 @@ app.include_router(books.router, prefix=f"{settings.API_V1_STR}/books", tags=["b
 app.include_router(chapters.router, prefix=f"{settings.API_V1_STR}/chapters", tags=["chapters"])
 app.include_router(ocr_pages.router, prefix=f"{settings.API_V1_STR}/ocr-pages", tags=["ocr-pages"])
 app.include_router(questions.router, prefix=f"{settings.API_V1_STR}/questions", tags=["questions"])
+app.include_router(upload.router, prefix=f"{settings.API_V1_STR}/upload", tags=["upload"])
 
 @app.get("/")
 async def root():

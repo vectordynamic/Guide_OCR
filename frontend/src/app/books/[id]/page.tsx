@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { getBook, getChapters } from '@/lib/api';
 import { Book, Chapter } from '@/lib/types';
 import AddChapterModal from '@/components/AddChapterModal';
+import BatchOCRButton from '@/components/BatchOCRButton';
 
 export default function BookDetailPage() {
     const params = useParams();
@@ -126,6 +127,13 @@ export default function BookDetailPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-4">
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                        <BatchOCRButton
+                                            chapterId={chapter._id}
+                                            chapterTitle={chapter.title}
+                                            onComplete={loadData}
+                                        />
+                                    </div>
                                     <span className={`px-3 py-1 rounded-full text-xs border ${getStatusColor(chapter.ocr_status)}`}>
                                         {chapter.ocr_status}
                                     </span>

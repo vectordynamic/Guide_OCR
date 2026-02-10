@@ -42,6 +42,7 @@ export interface OCRPage {
     continues_to_page?: string;
     created_at?: string;
     updated_at?: string;
+    version?: number;
 }
 
 export interface QuestionMetadata {

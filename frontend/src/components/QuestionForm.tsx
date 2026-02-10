@@ -143,7 +143,7 @@ export default function QuestionForm({ question, index, onChange, onDelete }: Qu
         }
     };
 
-    const config = typeConfig[localQuestion.type];
+    const config = typeConfig[localQuestion.type] || typeConfig.short;
 
     return (
         <>

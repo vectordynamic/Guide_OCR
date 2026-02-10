@@ -215,17 +215,30 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             const currentIdx = allPages.findIndex(p => p._id === page._id);
             const nextP = currentIdx < allPages.length - 1 ? allPages[currentIdx + 1] : null;
 
+            // OPTIMISTIC LOCKING: Send the version we currently have
+            const expectedVersion = page.version || 0;
+
             await verifyPage(page._id, {
                 verified_json: verifiedJson,
-                continues_to_page: continuesQuestion && nextP ? nextP._id : undefined
+                continues_to_page: continuesQuestion && nextP ? nextP._id : undefined,
+                expected_version: expectedVersion
             });
 
+            // If we reach here, save was successful.
+            // Update local state is handled by reloading the page below.
             setOriginalQuestions(JSON.parse(JSON.stringify(currentQuestions)));
             await loadPage(page._id);
             alert('Saved successfully!');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Save failed:', error);
-            alert('Save failed. Please try again.');
+
+            if (error.response && error.response.status === 409) {
+                alert('Conflict Detected: The page was modified by another process (or double-click). Reducing data loss by reloading the latest version...');
+                // Force reload to get latest version
+                await loadPage(page._id);
+            } else {
+                alert('Save failed. Please try again.');
+            }
         } finally {
             setSaving(false);
         }

@@ -89,6 +89,7 @@ class OCRPageResponse(BaseModel):
     continues_to_page: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    version: int = 0
 
     class Config:
         populate_by_name = True
@@ -97,6 +98,7 @@ class OCRPageResponse(BaseModel):
 class OCRPageVerify(BaseModel):
     verified_json: dict
     continues_to_page: Optional[str] = None
+    expected_version: Optional[int] = None
 
 
 # Question Schemas

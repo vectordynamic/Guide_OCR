@@ -100,15 +100,106 @@ async def verify_page(page_id: str, data: OCRPageVerify):
     2. Creates question entries in questions collection
     3. Updates page status to verified
     """
-    page = await get_ocr_pages_collection().find_one({"_id": ObjectId(page_id)})
-    if not page:
-        raise HTTPException(status_code=404, detail="Page not found")
     
+    # --- 0. OPTIMISTIC LOCKING CHECK ---
+    # If the client sent an expected_version, we must ensure the DB matches.
+    query = {"_id": ObjectId(page_id)}
+    
+    # If expected_version is provided, use it for the lock
+    if data.expected_version is not None:
+        query["version"] = data.expected_version
+        
+        # Try to find the page with this specific version
+        page = await get_ocr_pages_collection().find_one(query)
+        
+        if not page:
+            # If page exists but version doesn't match -> Conflict
+            # Check if page exists at all
+            exists = await get_ocr_pages_collection().find_one({"_id": ObjectId(page_id)})
+            if exists:
+                raise HTTPException(
+                    status_code=409, 
+                    detail=f"Version Conflict. Client expected v{data.expected_version}, but DB is at v{exists.get('version', 0)}"
+                )
+            else:
+                raise HTTPException(status_code=404, detail="Page not found")
+    else:
+        # No version check requested (legacy behavior), just fetch
+        page = await get_ocr_pages_collection().find_one(query)
+        if not page:
+            raise HTTPException(status_code=404, detail="Page not found")
+
+    
+    
+    # SMART CLEANUP: Identify and delete unused images from R2
+    # 1. Gather all old image URLs from existing questions
+    existing_questions = await get_questions_collection().find({"page_id": ObjectId(page_id)}).to_list(1000)
+    old_images = set()
+    for q in existing_questions:
+        if q.get("image_url"):
+            old_images.add(q["image_url"])
+        if q.get("answer_image_url"):
+            old_images.add(q["answer_image_url"])
+        for sub in q.get("sub_questions", []) or []:
+             if sub.get("answer_image_url"):
+                 old_images.add(sub["answer_image_url"])
+    
+    # 2. Gather all new image URLs
+    new_images = set()
+    questions = data.verified_json.get("questions", [])
+    for q in questions:
+        if q.get("image_url"):
+            new_images.add(q["image_url"])
+        if q.get("answer_image_url"):
+            new_images.add(q["answer_image_url"])
+        for sub in q.get("sub_questions", []) or []:
+             if sub.get("answer_image_url"):
+                 new_images.add(sub["answer_image_url"])
+                 
+    # 3. Find images to delete (Present in Old but NOT in New)
+    # Filter only for R2 URLs (not external ones if any, though likely all are R2)
+    # We should only delete images that are in our 'uploads/' folder (screenshots/crops)
+    # Book pages in 'books/' should NOT be deleted here as they belong to the page structure
+    
+    from app.services.r2_storage import get_r2_storage
+    r2 = get_r2_storage()
+    
+    images_to_delete = []
+    for img_url in old_images:
+        if img_url not in new_images:
+            # Check if it belongs to 'uploads/' (crops)
+            # URL format: https://domain/uploads/YYYY-MM-DD/filename.png
+            if "/uploads/" in img_url:
+                # Extract Key from URL
+                # stored remote_path is everything after domain/
+                # e.g. https://algorxai.com/uploads/... -> uploads/...
+                try:
+                    # typical split by domain
+                    # Assuming public_domain in settings doesn't have trailing slash, but URL might
+                    key = img_url.replace(f"{r2.public_domain}/", "")
+                    images_to_delete.append(key)
+                except Exception:
+                    pass
+
+    # 4. Delete from R2
+    if images_to_delete:
+        print(f"Cleaning up {len(images_to_delete)} unused crop images for page {page_id}")
+        import asyncio
+        # Run deletions in background or parallel
+        # Simple loop for now as it's usually small number
+        for key in images_to_delete:
+            asyncio.create_task(asyncio.to_thread(r2.delete_file, key))
+
+
     # Update continues_to_page if specified
+    # Also increment version for optimistic locking
+    new_version = page.get("version", 0) + 1
+    
     update_data = {
         "verified_json": data.verified_json,
         "ocr_status": "verified",
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.utcnow(),
+        "version": new_version
     }
     
     if data.continues_to_page:
@@ -125,11 +216,15 @@ async def verify_page(page_id: str, data: OCRPageVerify):
     )
     
     # Delete existing questions for this page to prevent duplicates
-    delete_result = await get_questions_collection().delete_many({"page_id": ObjectId(page_id)})
+    # Use explicit type check for debugging
+    print(f"DEBUG: Deleting questions for page {page_id} (Type: {type(page_id)})")
+    # Explicitly cast to string then ObjectId to be 100% sure
+    delete_query = {"page_id": ObjectId(str(page_id))}
+    delete_result = await get_questions_collection().delete_many(delete_query)
     questions_deleted = delete_result.deleted_count
+    print(f"DEBUG: Deleted {questions_deleted} questions for page {page_id}")
     
     # Create question entries from verified JSON
-    questions = data.verified_json.get("questions", [])
     questions_created = 0
     
     if questions:
@@ -164,7 +259,8 @@ async def verify_page(page_id: str, data: OCRPageVerify):
     return {
         "message": "Page verified successfully",
         "questions_deleted": questions_deleted,
-        "questions_created": questions_created
+        "questions_created": questions_created,
+        "images_cleaned": len(images_to_delete)
     }
 
 

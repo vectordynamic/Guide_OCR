@@ -211,7 +211,22 @@ TASK: Extract all questions from this image."""
             print(f"Response preview: {full_response[:500]}...")
             
             # Parse the JSON response
-            return self._parse_json_response(full_response)
+            data = self._parse_json_response(full_response)
+            
+            # Normalize question types
+            if "questions" in data and isinstance(data["questions"], list):
+                for q in data["questions"]:
+                    if not isinstance(q, dict): continue
+                    
+                    raw_type = str(q.get("type", "")).lower()
+                    if any(x in raw_type for x in ["mcq", "choice", "multiple"]):
+                        q["type"] = "mcq"
+                    elif any(x in raw_type for x in ["creative", "srijonshil", "cq"]):
+                        q["type"] = "creative"
+                    else:
+                        q["type"] = "short"
+            
+            return data
             
         except Exception as e:
             print(f"Gemini API Error: {str(e)}")

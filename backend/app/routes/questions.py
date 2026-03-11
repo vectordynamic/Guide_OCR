@@ -16,7 +16,10 @@ async def list_questions(
     page_id: str = None,
     chapter_id: str = None,
     book_id: str = None,
-    question_type: str = None
+    question_type: str = None,
+    board: str = None,
+    exam_year: str = None,
+    school_name: str = None,
 ):
     """Get questions with optional filters."""
     query = {}
@@ -29,6 +32,12 @@ async def list_questions(
         query["book_id"] = ObjectId(book_id)
     if question_type:
         query["type"] = question_type
+    if board:
+        query["metadata.appearances.board"] = board
+    if exam_year:
+        query["metadata.appearances.exam_year"] = exam_year
+    if school_name:
+        query["metadata.appearances.school_name"] = school_name
     
     questions = await get_questions_collection().find(query).to_list(500)
     

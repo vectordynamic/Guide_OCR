@@ -5,7 +5,7 @@
  * Visually rich, type-specific form for question data
  */
 import { useState, useEffect } from 'react';
-import { Question, QuestionType, BOARDS } from '@/lib/types';
+import { Question, QuestionType, BoardAppearance, BOARDS } from '@/lib/types';
 import { useVerify, CropTarget } from '@/context/VerifyContext';
 import ImageModal from './ImageModal';
 
@@ -29,6 +29,37 @@ export default function QuestionForm({ question, index, onChange, onDelete }: Qu
 
     const handleChange = (field: string, value: unknown) => {
         const updated = { ...localQuestion, [field]: value };
+        setLocalQuestion(updated);
+        onChange(index, updated);
+    };
+
+    const handleAppearanceChange = (appIndex: number, field: keyof BoardAppearance, value: string) => {
+        const appearances = [...(localQuestion.metadata?.appearances || [])];
+        appearances[appIndex] = { ...appearances[appIndex], [field]: value };
+        const updated = {
+            ...localQuestion,
+            metadata: { ...localQuestion.metadata, appearances }
+        };
+        setLocalQuestion(updated);
+        onChange(index, updated);
+    };
+
+    const addAppearance = () => {
+        const appearances = [...(localQuestion.metadata?.appearances || []), { board: '', exam_year: '', school_name: '' }];
+        const updated = {
+            ...localQuestion,
+            metadata: { ...localQuestion.metadata, appearances }
+        };
+        setLocalQuestion(updated);
+        onChange(index, updated);
+    };
+
+    const removeAppearance = (appIndex: number) => {
+        const appearances = (localQuestion.metadata?.appearances || []).filter((_, i) => i !== appIndex);
+        const updated = {
+            ...localQuestion,
+            metadata: { ...localQuestion.metadata, appearances }
+        };
         setLocalQuestion(updated);
         onChange(index, updated);
     };
@@ -159,7 +190,7 @@ export default function QuestionForm({ question, index, onChange, onDelete }: Qu
                             {config.label}
                         </span>
                         <span className="text-sm font-semibold text-white bg-gray-700 px-2.5 py-1 rounded">
-                            Q{index + 1}
+                            {localQuestion.metadata?.question_number ? `#${localQuestion.metadata.question_number}` : `Q${index + 1}`}
                         </span>
                         <span className={`w-2 h-2 rounded-full ${isComplete() ? 'bg-green-400' : 'bg-red-400'}`}
                             title={isComplete() ? 'Complete' : 'Incomplete'} />
@@ -450,50 +481,66 @@ export default function QuestionForm({ question, index, onChange, onDelete }: Qu
 
                             {showMetadata && (
                                 <div className="space-y-4 bg-gray-800/30 rounded-lg p-4 border border-gray-700">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1.5">Board</label>
-                                            <input
-                                                type="text"
-                                                list="boards"
-                                                value={localQuestion.metadata?.board || ''}
-                                                onChange={(e) => handleMetadataChange('board', e.target.value)}
-                                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
-                                                placeholder="Dhaka Board..."
-                                            />
-                                            <datalist id="boards">
-                                                {BOARDS.map((b) => <option key={b} value={b} />)}
-                                            </datalist>
+                                    {/* Question Number */}
+                                    <div className="mb-4">
+                                        <label className="block text-xs text-gray-500 mb-1.5">Question Number</label>
+                                        <input
+                                            type="text"
+                                            value={localQuestion.metadata?.question_number || ''}
+                                            onChange={(e) => handleMetadataChange('question_number', e.target.value)}
+                                            className="w-40 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
+                                            placeholder="1, 2, 3..."
+                                        />
+                                    </div>
+
+                                    {/* Board Appearances */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Board Appearances</label>
+                                            <button
+                                                onClick={addAppearance}
+                                                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                            >
+                                                + Add Board
+                                            </button>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1.5">Exam Year</label>
-                                            <input
-                                                type="text"
-                                                value={localQuestion.metadata?.exam_year || ''}
-                                                onChange={(e) => handleMetadataChange('exam_year', e.target.value)}
-                                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
-                                                placeholder="2023"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1.5">School Name</label>
-                                            <input
-                                                type="text"
-                                                value={localQuestion.metadata?.school_name || ''}
-                                                onChange={(e) => handleMetadataChange('school_name', e.target.value)}
-                                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
-                                                placeholder="School name..."
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs text-gray-500 mb-1.5">Question Number</label>
-                                            <input
-                                                type="text"
-                                                value={localQuestion.metadata?.question_number || ''}
-                                                onChange={(e) => handleMetadataChange('question_number', e.target.value)}
-                                                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm focus:ring-2 focus:ring-blue-500"
-                                                placeholder="1, 2, 3..."
-                                            />
+                                        <div className="space-y-2">
+                                            {(localQuestion.metadata?.appearances || []).length === 0 && (
+                                                <p className="text-xs text-gray-600 italic">No board appearances added yet.</p>
+                                            )}
+                                            {(localQuestion.metadata?.appearances || []).map((app, appIdx) => (
+                                                <div key={appIdx} className="flex items-center gap-2 bg-gray-700/40 p-2 rounded-lg border border-gray-600">
+                                                    <select
+                                                        value={app.board || ''}
+                                                        onChange={(e) => handleAppearanceChange(appIdx, 'board', e.target.value)}
+                                                        className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:ring-2 focus:ring-blue-500"
+                                                    >
+                                                        <option value="">Select Board...</option>
+                                                        {BOARDS.map((b) => <option key={b} value={b}>{b}</option>)}
+                                                    </select>
+                                                    <input
+                                                        type="text"
+                                                        value={app.exam_year || ''}
+                                                        onChange={(e) => handleAppearanceChange(appIdx, 'exam_year', e.target.value)}
+                                                        className="w-20 px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:ring-2 focus:ring-blue-500"
+                                                        placeholder="Year"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={app.school_name || ''}
+                                                        onChange={(e) => handleAppearanceChange(appIdx, 'school_name', e.target.value)}
+                                                        className="flex-1 px-2 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-xs focus:ring-2 focus:ring-blue-500"
+                                                        placeholder="School (optional)"
+                                                    />
+                                                    <button
+                                                        onClick={() => removeAppearance(appIdx)}
+                                                        className="text-red-400 hover:text-red-300 px-1.5 py-1 text-xs rounded hover:bg-red-900/20 transition-colors"
+                                                        title="Remove this appearance"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
 

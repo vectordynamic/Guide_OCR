@@ -39,7 +39,14 @@ export const mergePages = (pageId: string, previousPageId: string) =>
     api.post(`/ocr-pages/${pageId}/merge/${previousPageId}`);
 
 // Questions
-export const getQuestions = (params?: { page_id?: string; chapter_id?: string; book_id?: string }) =>
+export const getQuestions = (params?: {
+    page_id?: string;
+    chapter_id?: string;
+    book_id?: string;
+    board?: string;
+    exam_year?: string;
+    school_name?: string;
+}) =>
     api.get('/questions', { params });
 export const getQuestion = (id: string) => api.get(`/questions/${id}`);
 export const updateQuestion = (id: string, data: object) => api.put(`/questions/${id}`, data);

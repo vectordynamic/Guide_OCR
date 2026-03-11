@@ -72,7 +72,6 @@ async def update_chapter_ocr_status(chapter_id: str, status: str):
         raise HTTPException(status_code=404, detail="Chapter not found")
     
     return {"message": f"Chapter OCR status updated to: {status}"}
-    return {"message": f"Chapter OCR status updated to: {status}"}
 
 
 @router.post("/{chapter_id}/process", response_model=dict)

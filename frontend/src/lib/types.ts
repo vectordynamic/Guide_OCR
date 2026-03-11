@@ -45,10 +45,14 @@ export interface OCRPage {
     version?: number;
 }
 
-export interface QuestionMetadata {
-    board?: string;
+export interface BoardAppearance {
+    board: string;
     exam_year?: string;
     school_name?: string;
+}
+
+export interface QuestionMetadata {
+    appearances?: BoardAppearance[];
     question_number?: string;
 }
 

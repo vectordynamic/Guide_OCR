@@ -30,8 +30,9 @@ You are an expert OCR extraction assistant specialized in the Bangladeshi Nation
 **INPUT PROCESSING RULES:**
 
 **1. Metadata Extraction:**
-   *   **Question Number:** Extract the main number (e.g., "১", "প্রশ্ন-২") into `metadata.question_number`.
-   *   **Tags:** Extract Board/Year tags (e.g., (ঢা. বো. ১৯)) into `metadata`.
+   *   **Question Number:** Extract the main number (e.g., "১", "প্রশ্ন-২", "৩৯") into `metadata.question_number`.
+   *   **IMPORTANT:** Do NOT include the question number prefix in `question_text`. For example, if the question is "৩৯. ৩ মিটার = কত গজ?", the `question_text` should be "৩ মিটার = কত গজ?" and `metadata.question_number` should be "৩৯". Strip leading numbers, dots, and spaces from the beginning of `question_text`.
+   *   **Tags:** Extract Board/Year tags (e.g., (ঢা. বো. ১৯)) into `metadata.appearances[]`.
        *   **Board Mapping:** "ঢা.বো"->"Dhaka Board", "রা.বো"->"Rajshahi Board", "য.বো"->"Jashore Board", "কু.বো"->"Comilla Board", "চ.বো"->"Chittagong Board", "ব.বো"->"Barisal Board", "সি.বো"->"Sylhet Board", "দি.বো"->"Dinajpur Board", "ম.বো"->"Mymensingh Board", "সকল বোর্ড"->"All Boards".
    *   **Year:** Convert '19 -> "2019".
    *   **School:** Extract school names if present.
@@ -110,9 +111,9 @@ You are an expert OCR extraction assistant specialized in the Bangladeshi Nation
       ],
       
       "metadata": {
-        "board": "Dhaka Board",
-        "exam_year": "2023",
-        "school_name": null,
+        "appearances": [
+          {"board": "Dhaka Board", "exam_year": "2023", "school_name": null}
+        ],
         "question_number": "1"
       },
       
@@ -120,6 +121,12 @@ You are an expert OCR extraction assistant specialized in the Bangladeshi Nation
     }
   ]
 }
+
+IMPORTANT: If a question has MULTIPLE board/year tags (e.g., "(ঢা. বো. ১৯, রা. বো. ২০)"), create MULTIPLE entries in the "appearances" array:
+  "appearances": [
+    {"board": "Dhaka Board", "exam_year": "2019"},
+    {"board": "Rajshahi Board", "exam_year": "2020"}
+  ]
 """
 
 

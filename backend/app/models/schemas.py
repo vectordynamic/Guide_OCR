@@ -102,10 +102,14 @@ class OCRPageVerify(BaseModel):
 
 
 # Question Schemas
-class QuestionMetadata(BaseModel):
-    board: Optional[str] = None
+class BoardAppearance(BaseModel):
+    board: str
     exam_year: Optional[str] = None
     school_name: Optional[str] = None
+
+
+class QuestionMetadata(BaseModel):
+    appearances: List[BoardAppearance] = []
     question_number: Optional[str] = None
 
 

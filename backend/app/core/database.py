@@ -15,6 +15,17 @@ async def connect_to_mongo():
     db.client = AsyncIOMotorClient(settings.MONGODB_URL)
     print(f"Connected to MongoDB: {settings.DATABASE_NAME}")
 
+    # Create indexes for query performance
+    try:
+        questions = get_questions_collection()
+        await questions.create_index("metadata.appearances.board")
+        await questions.create_index("metadata.appearances.exam_year")
+        await questions.create_index([("book_id", 1), ("chapter_id", 1)])
+        await questions.create_index("type")
+        print("MongoDB indexes created/verified")
+    except Exception as e:
+        print(f"Warning: Index creation failed: {e}")
+
 
 async def close_mongo_connection():
     """Close database connection."""

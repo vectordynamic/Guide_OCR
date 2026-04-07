@@ -192,6 +192,11 @@ export default function QuestionForm({ question, index, onChange, onDelete }: Qu
                         <span className="text-sm font-semibold text-white bg-gray-700 px-2.5 py-1 rounded">
                             {localQuestion.metadata?.question_number ? `#${localQuestion.metadata.question_number}` : `Q${index + 1}`}
                         </span>
+                        {localQuestion.spans_pages && localQuestion.spans_pages.length > 1 && (
+                            <span className="text-xs font-bold text-blue-300 px-2 py-1 bg-blue-900/40 border border-blue-700/50 rounded flex items-center gap-1" title={`Spans across pages: ${localQuestion.spans_pages.join(', ')}`}>
+                                🔗 {localQuestion.spans_pages.length} Pages
+                            </span>
+                        )}
                         <span className={`w-2 h-2 rounded-full ${isComplete() ? 'bg-green-400' : 'bg-red-400'}`}
                             title={isComplete() ? 'Complete' : 'Incomplete'} />
                         <span className="text-sm text-gray-300 truncate max-w-[400px]">
@@ -545,17 +550,25 @@ export default function QuestionForm({ question, index, onChange, onDelete }: Qu
                                     </div>
 
                                     {/* Continues on next page */}
-                                    <div className="flex items-center gap-2 pt-2">
-                                        <input
-                                            type="checkbox"
-                                            id={`continues-${index}`}
-                                            checked={localQuestion.continues_on_next_page || false}
-                                            onChange={(e) => handleChange('continues_on_next_page', e.target.checked)}
-                                            className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-2 focus:ring-yellow-500"
-                                        />
-                                        <label htmlFor={`continues-${index}`} className="text-sm text-yellow-400 flex items-center gap-1">
-                                            ⚠️ Continues on next page
-                                        </label>
+                                    <div className="flex flex-col gap-2 pt-2">
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id={`continues-${index}`}
+                                                checked={localQuestion.continues_on_next_page || false}
+                                                onChange={(e) => handleChange('continues_on_next_page', e.target.checked)}
+                                                className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-2 focus:ring-yellow-500"
+                                            />
+                                            <label htmlFor={`continues-${index}`} className="text-sm text-yellow-400 flex items-center gap-1">
+                                                ➡️ Continues on next page
+                                            </label>
+                                        </div>
+                                        {localQuestion.is_continuation && (
+                                            <div className="text-sm text-blue-400 flex items-center gap-1 bg-blue-900/20 py-1 border-l-2 border-blue-500 px-2">
+                                                ⬅️ This question is a continuation from the previous page
+                                                {localQuestion.continuation_of && ` (Continuing: ${localQuestion.continuation_of.replace('_', ' ')})`}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

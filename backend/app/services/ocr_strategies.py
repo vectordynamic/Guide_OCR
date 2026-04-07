@@ -13,12 +13,13 @@ class OCRStrategy(ABC):
     """Abstract base class for OCR strategies."""
     
     @abstractmethod
-    async def process_image(self, image_url: str) -> Dict[str, Any]:
+    async def process_image(self, image_url: str, continuation_context: str = None) -> Dict[str, Any]:
         """
         Process an image and extract questions.
         
         Args:
             image_url: Public URL of the image to process
+            continuation_context: Optional context snippet from the previous page for stitching
             
         Returns:
             Dictionary containing extracted questions in standard format

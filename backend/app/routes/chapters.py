@@ -151,9 +151,51 @@ async def process_chapter_ocr(chapter_id: str):
     
     success_count = sum(1 for r in results if r)
     
+    # -------------------------------------------------------------
+    # PASS 2: Sequential Auto-Stitching
+    # -------------------------------------------------------------
+    # Re-fetch pages because their raw_ocr_json has been updated
+    updated_pages = await get_ocr_pages_collection().find(
+        {"chapter_id": ObjectId(chapter_id)}
+    ).sort("page_number", 1).to_list(1000)
+    
+    from app.services.ocr_sequence_service import process_sequence
+    
+    stitched_sequences = 0
+    stitch_details = []
+    
+    # Keep track of pages processed as part of a sequence so we don't start a sequence from them
+    skip_pages = set()
+    
+    for p in updated_pages:
+        page_id = str(p["_id"])
+        if page_id in skip_pages:
+            continue
+            
+        result_data = p.get("raw_ocr_json")
+        if not result_data:
+            continue
+            
+        questions = result_data.get("questions", [])
+        if questions and questions[-1].get("continues_on_next_page"):
+            # Start sequence
+            seq_res = await process_sequence(
+                starting_page_id=page_id,
+                starting_ocr_result=result_data
+            )
+            
+            stitched_sequences += 1
+            stitch_details.append(seq_res)
+            
+            # Skip subsequent pages that were evaluated in this sequence
+            for processed_id in seq_res.get("pages_processed", []):
+                skip_pages.add(processed_id)
+    
     return {
-        "message": f"Batch processing started. Successfully processed {success_count}/{len(pending_pages)} pages.",
+        "message": f"Batch processing complete. Stitched {stitched_sequences} sequences.",
         "total_pages": len(pages),
         "processed_count": success_count,
-        "failed_count": len(pending_pages) - success_count
+        "failed_count": len(pending_pages) - success_count,
+        "stitched_sequences": stitched_sequences,
+        "stitch_details": stitch_details
     }

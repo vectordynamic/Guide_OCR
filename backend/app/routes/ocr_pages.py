@@ -50,6 +50,16 @@ async def process_page_ocr(page_id: str):
     )
     
     try:
+        # When re-processing, we need to clear past sequence links
+        await get_ocr_pages_collection().update_many(
+            {"continues_from_page": ObjectId(page_id)},
+            {"$unset": {"continues_from_page": ""}}
+        )
+        await get_ocr_pages_collection().update_many(
+            {"continues_to_page": ObjectId(page_id)},
+            {"$unset": {"continues_to_page": ""}}
+        )
+
         # Process with LLM
         ocr = get_ocr_processor()
         result = await ocr.process_image(page["image_url"])
@@ -62,15 +72,39 @@ async def process_page_ocr(page_id: str):
                     "raw_ocr_json": result,
                     "ocr_status": "completed",
                     "updated_at": datetime.utcnow()
+                },
+                "$unset": {
+                    "continues_from_page": "",
+                    "continues_to_page": ""
                 }
             }
         )
         
-        return {
+        # Check if we need to start sequence processing
+        questions = result.get("questions", [])
+        last_question_continues = False
+        if questions and questions[-1].get("continues_on_next_page"):
+            last_question_continues = True
+            
+        sequence_result = None
+        if last_question_continues:
+            from app.services.ocr_sequence_service import process_sequence
+            sequence_result = await process_sequence(
+                starting_page_id=page_id,
+                starting_ocr_result=result
+            )
+        
+        response_data = {
             "message": "OCR processing completed",
             "questions_found": len(result.get("questions", [])),
             "raw_ocr_json": result
         }
+        
+        if sequence_result:
+            response_data["message"] = "OCR processing completed with auto-stitching"
+            response_data["sequence"] = sequence_result
+            
+        return response_data
     
     except Exception as e:
         # Log detailed error
@@ -89,6 +123,32 @@ async def process_page_ocr(page_id: str):
             }
         )
         raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
+
+
+@router.post("/{page_id}/process-sequence")
+async def process_page_sequence(page_id: str):
+    """Manually trigger sequence processing starting from this page."""
+    page = await get_ocr_pages_collection().find_one({"_id": ObjectId(page_id)})
+    if not page:
+        raise HTTPException(status_code=404, detail="Page not found")
+        
+    if not page.get("raw_ocr_json"):
+        raise HTTPException(status_code=400, detail="Page has no OCR data. Process OCR first.")
+        
+    questions = page["raw_ocr_json"].get("questions", [])
+    if not questions or not questions[-1].get("continues_on_next_page"):
+        return {"message": "No continuation found on this page.", "sequence": None}
+        
+    from app.services.ocr_sequence_service import process_sequence
+    sequence_result = await process_sequence(
+        starting_page_id=page_id,
+        starting_ocr_result=page["raw_ocr_json"]
+    )
+    
+    return {
+        "message": "Sequence processing complete",
+        "sequence": sequence_result
+    }
 
 
 @router.put("/{page_id}/verify")

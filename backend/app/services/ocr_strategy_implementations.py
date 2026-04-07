@@ -127,6 +127,10 @@ IMPORTANT: If a question has MULTIPLE board/year tags (e.g., "(ঢা. বো. �
     {"board": "Dhaka Board", "exam_year": "2019"},
     {"board": "Rajshahi Board", "exam_year": "2020"}
   ]
+
+If the question itself is completely cut off at the bottom of the page, meaning the full question or its sub-questions are missing, set "continues_on_next_page": true.
+
+If you are provided with CONTINUATION CONTEXT, check if the top of the image continues from the text provided. If it does, mark the FIRST question/answer extracted with "is_continuation": true, and extract ONLY the continuation portion.
 """
 
 
@@ -139,7 +143,7 @@ class GeminiStrategy(OCRStrategy):
         # gemini-3-flash-preview
         self.client = genai.Client(api_key=self.api_key)
     
-    async def process_image(self, image_url: str) -> Dict[str, Any]:
+    async def process_image(self, image_url: str, continuation_context: str = None) -> Dict[str, Any]:
         """Process image using Gemini 3 Flash Preview with thinking capability"""
         print(f"Using Google Gemini 3 Flash Preview for OCR: {image_url}")
         
@@ -154,6 +158,9 @@ IMPORTANT INSTRUCTIONS:
 4. **Output:** Return strictly raw JSON. Do not use Markdown code blocks (no ```json wrappers).
 
 TASK: Extract all questions from this image."""
+
+            if continuation_context:
+                prompt_text += f"\n\n{continuation_context}"
 
             # Create content parts with image and text
             contents = [
@@ -220,7 +227,25 @@ TASK: Extract all questions from this image."""
             # Parse the JSON response
             data = self._parse_json_response(full_response)
             
-            # Normalize question types
+            # 1. FLATNESS FIX: Some model responses hallucinate a nested "questions" property
+            # within a top-level question object. We must "hoist" these sub-questions.
+            if "questions" in data and isinstance(data["questions"], list):
+                hoisted_questions = []
+                for item in data["questions"]:
+                    if not isinstance(item, dict):
+                        hoisted_questions.append(item)
+                        continue
+                    
+                    # If this question itself contains a list of questions, hoist those and remove the wrapper
+                    if "questions" in item and isinstance(item["questions"], list):
+                        print(f"Branding Fix: Hoisting {len(item['questions'])} nested questions from {item.get('type')} wrapper.")
+                        hoisted_questions.extend(item["questions"])
+                    else:
+                        hoisted_questions.append(item)
+                
+                data["questions"] = hoisted_questions
+
+            # 2. Normalize question types
             if "questions" in data and isinstance(data["questions"], list):
                 for q in data["questions"]:
                     if not isinstance(q, dict): continue

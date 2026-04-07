@@ -87,6 +87,7 @@ class OCRPageResponse(BaseModel):
     verified_json: Optional[dict] = None
     continues_from_page: Optional[str] = None
     continues_to_page: Optional[str] = None
+    spans_pages: Optional[List[str]] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     version: int = 0

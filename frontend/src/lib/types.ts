@@ -40,6 +40,7 @@ export interface OCRPage {
     verified_json?: OCRResult;
     continues_from_page?: string;
     continues_to_page?: string;
+    spans_pages?: string[];
     created_at?: string;
     updated_at?: string;
     version?: number;
@@ -87,6 +88,10 @@ export interface Question {
     metadata?: QuestionMetadata;
     hints?: string[];
     continues_on_next_page?: boolean;
+    is_continuation?: boolean;
+    continuation_of?: 'question_text' | 'answer' | 'sub_question_answer';
+    continuation_sub_index?: string;
+    spans_pages?: string[];
 }
 
 export interface OCRResult {

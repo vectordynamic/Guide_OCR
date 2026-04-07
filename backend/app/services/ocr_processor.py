@@ -23,12 +23,13 @@ class OCRProcessor:
         print(f"Initializing Google Gemini OCR strategy")
         self.strategy = GeminiStrategy(api_key=settings.GEMINI_API_KEY)
     
-    async def process_image(self, image_url: str) -> Dict[str, Any]:
+    async def process_image(self, image_url: str, continuation_context: str = None) -> Dict[str, Any]:
         """
         Process an image using Google Gemini.
         
         Args:
             image_url: Public URL of the image to process
+            continuation_context: Optional context for stitching
             
         Returns:
             Dictionary with questions in standard format
@@ -36,7 +37,7 @@ class OCRProcessor:
         if not self.strategy:
             raise RuntimeError("OCR strategy not initialized")
         
-        return await self.strategy.process_image(image_url)
+        return await self.strategy.process_image(image_url, continuation_context)
 
 
 # Singleton instance

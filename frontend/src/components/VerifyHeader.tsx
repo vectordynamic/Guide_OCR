@@ -14,6 +14,7 @@ export default function VerifyHeader() {
         allPages,
         pageLoading,
         processing,
+        processingStatus,
         saving,
         handleProcessOCR,
         handleSave,
@@ -59,7 +60,7 @@ export default function VerifyHeader() {
                                 disabled={processing || pageLoading}
                                 className="px-4 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm disabled:opacity-50 transition-colors h-[30px] flex items-center"
                             >
-                                {processing ? 'Processing...' : page.ocr_status === 'pending' ? '🔍 Process OCR' : '🔄 Re-process OCR'}
+                                {processing ? (processingStatus || 'Processing...') : page.ocr_status === 'pending' ? '🔍 Process OCR' : '🔄 Re-process OCR'}
                             </button>
                         )}
 
@@ -93,15 +94,26 @@ export default function VerifyHeader() {
                 </div>
             </header>
 
-            {/* Continuation Alert */}
+            {/* Continuation Alerts */}
             {page.continues_from_page && (
-                <div className="bg-yellow-900/30 border-b border-yellow-700 px-4 py-2 text-yellow-400 text-sm flex items-center justify-between">
-                    <span>⚠️ This page has a question continued from the previous page</span>
+                <div className="bg-blue-900/30 border-b border-blue-700 px-4 py-2 text-blue-400 text-sm flex items-center justify-between">
+                    <span>⬅️ This page has a merged question pushed forward from the previous page.</span>
                     <button
                         onClick={goToPrev}
-                        className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 rounded text-xs"
+                        className="px-3 py-1 bg-blue-700 hover:bg-blue-600 rounded text-xs text-white"
                     >
                         Go to Previous Page
+                    </button>
+                </div>
+            )}
+            {page.continues_to_page && (
+                <div className="bg-yellow-900/30 border-b border-yellow-700 px-4 py-2 text-yellow-400 text-sm flex items-center justify-between">
+                    <span>➡️ This page had a cut-off question that was pushed forward to the next page.</span>
+                    <button
+                        onClick={goToNext}
+                        className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 rounded text-xs text-white"
+                    >
+                        Go to Next Page
                     </button>
                 </div>
             )}

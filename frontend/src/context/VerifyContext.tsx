@@ -23,6 +23,7 @@ interface VerifyContextType {
     loading: boolean;
     pageLoading: boolean;
     processing: boolean;
+    processingStatus: string;
     saving: boolean;
 
     // Actions
@@ -71,6 +72,7 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
     const [loading, setLoading] = useState(true);
     const [pageLoading, setPageLoading] = useState(false);
     const [processing, setProcessing] = useState(false);
+    const [processingStatus, setProcessingStatus] = useState<string>('');
     const [saving, setSaving] = useState(false);
 
     // Crop State
@@ -129,16 +131,23 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
     const handleProcessOCR = useCallback(async () => {
         if (!page) return;
         setProcessing(true);
+        setProcessingStatus('Analyzing page...');
         try {
             const response = await processPageOCR(page._id);
-            const newQuestions = response.data.raw_ocr_json?.questions || [];
-            setQuestions(newQuestions);
-            setOriginalQuestions(JSON.parse(JSON.stringify(newQuestions)));
+            const sequence = response.data.sequence;
+            
+            if (sequence) {
+                setProcessingStatus(`Stitching across ${sequence.pages_processed.length} pages...`);
+            }
+            
+            // Re-load the page to get the latest OCR result
+            currentPageIdRef.current = null;
             await loadPage(page._id);
         } catch (error) {
             console.error('OCR processing failed:', error);
         } finally {
             setProcessing(false);
+            setProcessingStatus('');
         }
     }, [page, loadPage]);
 
@@ -298,6 +307,7 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             loading,
             pageLoading,
             processing,
+            processingStatus,
             saving,
             loadPage,
             handleProcessOCR,

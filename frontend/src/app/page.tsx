@@ -30,7 +30,9 @@ export default function Home() {
     { num: 1, title: '', start: 1, end: 10 }
   ]);
 
+  const [uploadMode, setUploadMode] = useState<'pdf' | 'folder'>('pdf');
   const [file, setFile] = useState<File | null>(null);
+  const [folderFiles, setFolderFiles] = useState<File[]>([]);
 
   const addChapter = () => {
     const lastChapter = chapters[chapters.length - 1];
@@ -50,14 +52,19 @@ export default function Home() {
 
   const updateChapter = (index: number, field: keyof ChapterInput, value: string | number) => {
     const updated = [...chapters];
-    updated[index] = { ...updated[index], [field]: value };
+    const numericValue = typeof value === 'string' ? (value === '' ? 0 : parseInt(value)) : value;
+    updated[index] = { ...updated[index], [field]: isNaN(numericValue) ? 0 : numericValue };
     setChapters(updated);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) {
+    if (uploadMode === 'pdf' && !file) {
       setError('Please select a PDF file');
+      return;
+    }
+    if (uploadMode === 'folder' && folderFiles.length === 0) {
+      setError('Please select a folder with images');
       return;
     }
 
@@ -66,7 +73,13 @@ export default function Home() {
 
     try {
       const data = new FormData();
-      data.append('file', file);
+      if (uploadMode === 'pdf' && file) {
+        data.append('file', file);
+      } else if (uploadMode === 'folder') {
+        folderFiles.forEach((f) => {
+          data.append('image_files', f);
+        });
+      }
       data.append('title', formData.title);
       data.append('subject', formData.subject);
       data.append('class_name', formData.class_name);
@@ -92,12 +105,34 @@ export default function Home() {
             📚 Smart Textbook Digitization
           </h1>
           <p className="text-gray-400 text-lg">
-            Upload your PDF textbook to extract and verify questions using AI
+            Upload your PDF textbook or a folder of images to extract and verify questions using AI
           </p>
         </div>
 
         {/* Upload Form */}
         <form onSubmit={handleSubmit} className="bg-gray-800/50 backdrop-blur rounded-2xl p-8 shadow-xl border border-gray-700">
+          
+          {/* Upload Mode Toggle */}
+          <div className="flex bg-gray-700/50 p-1 rounded-lg mb-8">
+            <button
+              type="button"
+              onClick={() => { setUploadMode('pdf'); setError(''); }}
+              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
+                uploadMode === 'pdf' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              📄 PDF File
+            </button>
+            <button
+              type="button"
+              onClick={() => { setUploadMode('folder'); setError(''); }}
+              className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
+                uploadMode === 'folder' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              📁 Folder of Images
+            </button>
+          </div>
           {/* Book Details */}
           <div className="grid grid-cols-2 gap-6 mb-8">
             <div className="col-span-2">
@@ -160,16 +195,16 @@ export default function Home() {
                   />
                   <input
                     type="number"
-                    value={ch.start}
-                    onChange={(e) => updateChapter(i, 'start', parseInt(e.target.value))}
+                    value={ch.start || 0}
+                    onChange={(e) => updateChapter(i, 'start', e.target.value)}
                     className="w-20 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm text-center"
                     placeholder="Start"
                   />
                   <span className="text-gray-500">→</span>
                   <input
                     type="number"
-                    value={ch.end}
-                    onChange={(e) => updateChapter(i, 'end', parseInt(e.target.value))}
+                    value={ch.end || 0}
+                    onChange={(e) => updateChapter(i, 'end', e.target.value)}
                     className="w-20 px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm text-center"
                     placeholder="End"
                   />
@@ -187,30 +222,67 @@ export default function Home() {
             </div>
           </div>
 
-          {/* PDF Upload */}
+          {/* File Upload Area */}
           <div className="mb-8">
-            <label className="block text-sm font-medium text-gray-300 mb-2">PDF File</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              {uploadMode === 'pdf' ? 'PDF File' : 'Images Folder'}
+            </label>
             <div className="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="hidden"
-                id="pdf-upload"
-              />
-              <label htmlFor="pdf-upload" className="cursor-pointer">
-                {file ? (
-                  <div className="text-green-400">
-                    <span className="text-2xl">✓</span>
-                    <p className="mt-2">{file.name}</p>
-                  </div>
-                ) : (
-                  <div className="text-gray-400">
-                    <span className="text-4xl">📄</span>
-                    <p className="mt-2">Click to select PDF file</p>
-                  </div>
-                )}
-              </label>
+              {uploadMode === 'pdf' ? (
+                <>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                    id="pdf-upload"
+                  />
+                  <label htmlFor="pdf-upload" className="cursor-pointer">
+                    {file ? (
+                      <div className="text-green-400">
+                        <span className="text-2xl">✓</span>
+                        <p className="mt-2 text-sm">{file.name}</p>
+                      </div>
+                    ) : (
+                      <div className="text-gray-400">
+                        <span className="text-4xl block mb-2">📄</span>
+                        <p className="text-sm">Click to select PDF file</p>
+                      </div>
+                    )}
+                  </label>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="file"
+                    multiple
+                    {...({ webkitdirectory: "", directory: "" } as any)}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      // Filter for images only
+                      const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                      setFolderFiles(imageFiles);
+                    }}
+                    className="hidden"
+                    id="folder-upload"
+                  />
+                  <label htmlFor="folder-upload" className="cursor-pointer">
+                    {folderFiles.length > 0 ? (
+                      <div className="text-green-400">
+                        <span className="text-2xl font-bold">{folderFiles.length}</span>
+                        <p className="mt-2 text-sm">Images Selected</p>
+                        <p className="text-xs text-gray-500 mt-1 italic">Order: alphabetically by filename</p>
+                      </div>
+                    ) : (
+                      <div className="text-gray-400">
+                        <span className="text-4xl block mb-2">📁</span>
+                        <p className="text-sm">Select Folder containing Images</p>
+                        <p className="text-xs text-gray-500 mt-1">Files should be named sequencially (e.g. page_001.png)</p>
+                      </div>
+                    )}
+                  </label>
+                </>
+              )}
             </div>
           </div>
 

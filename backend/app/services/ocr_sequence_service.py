@@ -214,7 +214,8 @@ All other questions on this page should be extracted normally.
                     "raw_ocr_json": current_result,
                     "continues_to_page": ObjectId(next_page_id),
                     "updated_at": datetime.utcnow()
-                }
+                },
+                "$inc": {"version": 1}
             }
         )
         
@@ -227,7 +228,8 @@ All other questions on this page should be extracted normally.
                     "ocr_status": "completed",
                     "continues_from_page": ObjectId(current_page_id),
                     "updated_at": datetime.utcnow()
-                }
+                },
+                "$inc": {"version": 1}
             }
         )
         

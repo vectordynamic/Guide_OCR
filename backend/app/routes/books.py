@@ -7,6 +7,8 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from bson import ObjectId
 
+from typing import Optional, List, Tuple
+import asyncio
 from app.core.database import get_books_collection, get_chapters_collection, get_ocr_pages_collection, get_questions_collection
 from app.models.schemas import BookCreate, BookResponse, PDFUploadResponse
 from app.services.pdf_converter import convert_pdf_to_images
@@ -52,7 +54,8 @@ async def create_book(book: BookCreate):
 
 @router.post("/upload", response_model=PDFUploadResponse)
 async def upload_pdf(
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    image_files: Optional[List[UploadFile]] = File(None),
     title: str = Form(...),
     subject: str = Form(...),
     class_name: str = Form(...),
@@ -60,14 +63,13 @@ async def upload_pdf(
     chapters: str = Form(...)  # JSON array: [{"num": 1, "title": "...", "start": 1, "end": 35}]
 ):
     """
-    Upload PDF and convert to images.
-    
-    1. Creates book entry
-    2. Converts PDF to PNG images (300 DPI)
-    3. Uploads images to R2
-    4. Creates chapter and ocr_page entries
+    Upload PDF or Folder of Images and process.
     """
     import json
+    
+    # Validation
+    if not file and not image_files:
+        raise HTTPException(status_code=400, detail="Either a PDF file or a folder of images must be provided")
     
     # Parse chapters JSON
     try:
@@ -75,29 +77,46 @@ async def upload_pdf(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid chapters JSON")
     
-    # Save uploaded PDF temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
+    # Save uploaded PDF temporarily if provided
+    tmp_pdf_path = None
+    if file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_pdf_path = tmp.name
     
     # Track created resources for rollback
     created_book_id = None
-    uploaded_chapter_images = [] # List of remote paths
     
     try:
-        # Convert PDF to images
+        # Prepare workspace
         with tempfile.TemporaryDirectory() as tmp_dir:
-            images = convert_pdf_to_images(tmp_path, tmp_dir)
+            images: List[Tuple[int, str]] = []
+            
+            if file and tmp_pdf_path:
+                # Convert PDF to images
+                images = convert_pdf_to_images(tmp_pdf_path, tmp_dir)
+            elif image_files:
+                # Handle direct image uploads
+                # Sort by filename to maintain order
+                sorted_files = sorted(image_files, key=lambda f: f.filename)
+                
+                for i, img_file in enumerate(sorted_files):
+                    p_num = i + 1
+                    # Save each image to tmp_dir
+                    ext = os.path.splitext(img_file.filename)[1] or ".png"
+                    local_path = os.path.join(tmp_dir, f"page_{p_num:03d}{ext}")
+                    
+                    with open(local_path, "wb") as buffer:
+                        content = await img_file.read()
+                        buffer.write(content)
+                    
+                    images.append((p_num, local_path))
+            
             total_pages = len(images)
-            
-            # Auto-extend last chapter to cover all pages
-            if chapter_list:
-                last_chapter = chapter_list[-1]
-                if last_chapter["end"] < total_pages:
-                    last_chapter["end"] = total_pages
-                    print(f"Auto-extended last chapter to cover all {total_pages} pages")
-            
+            if total_pages == 0:
+                 raise HTTPException(status_code=400, detail="No pages found to process")
+
             # Create book entry (Transaction Step 1)
             book_doc = {
                 "title": title,
@@ -116,14 +135,10 @@ async def upload_pdf(
             
             # PARALLEL UPLOAD LOGIC
             r2 = get_r2_storage()
-            import asyncio
-            
-            # Semaphore to limit concurrency (e.g., 20 parallel uploads)
             sem = asyncio.Semaphore(20)
             
             async def upload_page_wrapper(local_path, b_id, c_num, p_num):
                  async with sem:
-                     # Run blocking upload in thread
                      url = await asyncio.to_thread(
                          r2.upload_chapter_page, local_path, b_id, c_num, p_num
                      )
@@ -191,6 +206,7 @@ async def upload_pdf(
                             "verified_json": None,
                             "continues_from_page": None,
                             "continues_to_page": None,
+                            "version": 0,
                             "created_at": datetime.utcnow(),
                             "updated_at": datetime.utcnow()
                         })
@@ -246,8 +262,8 @@ async def upload_pdf(
     
     finally:
         # Cleanup temp PDF
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
+        if tmp_pdf_path and os.path.exists(tmp_pdf_path):
+            os.unlink(tmp_pdf_path)
 
 
 @router.delete("/{book_id}")
@@ -284,14 +300,17 @@ async def delete_book(book_id: str):
 @router.post("/{book_id}/chapters", response_model=BookResponse)
 async def add_chapter(
     book_id: str,
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    image_files: Optional[List[UploadFile]] = File(None),
     title: str = Form(...),
     chapter_num: int = Form(...)
 ):
     """
-    Add a new chapter to an existing book by uploading a PDF.
-    Appends the chapter to the end of the book.
+    Add a new chapter to an existing book (PDF or Folder of images).
     """
+    if not file and not image_files:
+        raise HTTPException(status_code=400, detail="Either a PDF file or a folder of images must be provided")
+        
     # 1. Fetch Book
     book = await get_books_collection().find_one({"_id": ObjectId(book_id)})
     if not book:
@@ -301,22 +320,40 @@ async def add_chapter(
     current_total_pages = book.get("total_pages", 0)
     start_page = current_total_pages + 1
     
-    # Save uploaded PDF temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        content = await file.read()
-        tmp.write(content)
-        tmp_path = tmp.name
+    # Save uploaded PDF temporarily if provided
+    tmp_pdf_path = None
+    if file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_pdf_path = tmp.name
         
     # Track resources for rollback
     created_chapter_id = None
-    uploaded_pages_info = [] # List of tuples (chapter_num, page_num)
     
     try:
-        # 2. Convert PDF to images
+        # 2. Prepare Workspace
         with tempfile.TemporaryDirectory() as tmp_dir:
-            images = convert_pdf_to_images(tmp_path, tmp_dir)
+            images: List[Tuple[int, str]] = []
+            
+            if file and tmp_pdf_path:
+                images = convert_pdf_to_images(tmp_pdf_path, tmp_dir)
+            elif image_files:
+                # Sort files to maintain page order
+                sorted_files = sorted(image_files, key=lambda f: f.filename)
+                for i, img_file in enumerate(sorted_files):
+                    p_num = i + 1 # Internal index for this batch
+                    ext = os.path.splitext(img_file.filename)[1] or ".png"
+                    local_path = os.path.join(tmp_dir, f"page_{p_num:03d}{ext}")
+                    
+                    with open(local_path, "wb") as buffer:
+                        content = await img_file.read()
+                        buffer.write(content)
+                    
+                    images.append((p_num, local_path))
+                    
             if not images:
-                 raise HTTPException(status_code=400, detail="PDF contains no pages")
+                 raise HTTPException(status_code=400, detail="No pages found to process")
             
             new_chapter_pages = len(images)
             end_page = start_page + new_chapter_pages - 1
@@ -431,5 +468,5 @@ async def add_chapter(
         raise HTTPException(status_code=500, detail=f"Chapter upload failed and rolled back: {str(e)}")
 
     finally:
-        if os.path.exists(tmp_path):
-             os.unlink(tmp_path)
+        if tmp_pdf_path and os.path.exists(tmp_pdf_path):
+             os.unlink(tmp_pdf_path)

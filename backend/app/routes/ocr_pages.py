@@ -167,8 +167,13 @@ async def verify_page(page_id: str, data: OCRPageVerify):
     
     # If expected_version is provided, use it for the lock
     if data.expected_version is not None:
-        query["version"] = data.expected_version
-        
+        # We need to handle the case where the document doesn't have a version field yet (v0)
+        # In MongoDB, { "version": { "$exists": False } } counts as 0 logic-wise for our app
+        if data.expected_version == 0:
+            query["$or"] = [{"version": 0}, {"version": {"$exists": False}}]
+        else:
+            query["version"] = data.expected_version
+            
         # Try to find the page with this specific version
         page = await get_ocr_pages_collection().find_one(query)
         

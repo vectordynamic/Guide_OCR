@@ -16,6 +16,9 @@ export default function VerifyHeader() {
         processing,
         processingStatus,
         saving,
+        autoChain,
+        autoChainStatus,
+        setAutoChain,
         handleProcessOCR,
         handleSave,
         questions,
@@ -63,6 +66,23 @@ export default function VerifyHeader() {
                                 {processing ? (processingStatus || 'Processing...') : page.ocr_status === 'pending' ? '🔍 Process OCR' : '🔄 Re-process OCR'}
                             </button>
                         )}
+                        
+                        {/* Auto-Chain Toggle */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none ml-2 mr-2">
+                            <div
+                                onClick={() => setAutoChain(!autoChain)}
+                                className={`relative w-10 h-5 rounded-full transition-colors duration-300 ease-in-out ${autoChain ? 'bg-green-500' : 'bg-gray-600'}`}
+                            >
+                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out ${autoChain ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            </div>
+                            <span className="text-xs text-gray-300">Auto-Chain</span>
+                            {autoChain && autoChainStatus && (
+                                <span className="text-xs text-green-400 bg-green-900/40 border border-green-700/50 px-2 py-0.5 rounded flex items-center gap-1 shadow-sm absolute top-full mt-1 left-1/2 transform -translate-x-1/2 whitespace-nowrap z-50">
+                                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+                                    {autoChainStatus}
+                                </span>
+                            )}
+                        </label>
 
                         {/* Navigation - uses internal state, NO URL change */}
                         <button

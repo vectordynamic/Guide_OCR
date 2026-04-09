@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
 import { getOCRPage, processPageOCR, verifyPage, getChapterPages } from '@/lib/api';
 import { OCRPage, Question, OCRResult, SubQuestion } from '@/lib/types';
 import { uploadImage } from '@/lib/api';
@@ -25,6 +25,11 @@ interface VerifyContextType {
     processing: boolean;
     processingStatus: string;
     saving: boolean;
+
+    // Auto-Chain state
+    autoChain: boolean;
+    autoChainStatus: string;
+    setAutoChain: (val: boolean) => void;
 
     // Actions
     loadPage: (pageId: string) => Promise<void>;
@@ -78,6 +83,18 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
     // Crop State
     const [cropTarget, setCropTarget] = useState<CropTarget | null>(null);
     const [pendingImages, setPendingImages] = useState<Record<string, Blob>>({});
+
+    // Auto-Chain state
+    const [autoChain, setAutoChainState] = useState(false);
+    const [autoChainStatus, setAutoChainStatus] = useState('');
+    const autoChainRef = useRef(false);
+
+    // Sync state and ref for auto-chain
+    const setAutoChain = useCallback((val: boolean) => {
+        setAutoChainState(val);
+        autoChainRef.current = val;
+        if (!val) setAutoChainStatus('');
+    }, []);
 
     // Use refs to avoid stale closures and infinite loops
     const currentPageIdRef = useRef<string | null>(null);
@@ -143,13 +160,42 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             // Re-load the page to get the latest OCR result
             currentPageIdRef.current = null;
             await loadPage(page._id);
+
+            // Auto-Chain Check
+            if (autoChainRef.current) {
+                const currentIdx = allPagesRef.current.findIndex(p => p._id === page._id);
+                const nextP = currentIdx !== -1 && currentIdx < allPagesRef.current.length - 1 
+                    ? allPagesRef.current[currentIdx + 1] : null;
+
+                if (nextP) {
+                    setAutoChainStatus(`Auto-advancing to page ${nextP.page_number}...`);
+                    await new Promise(res => setTimeout(res, 1000)); // 1s pause
+                    
+                    if (autoChainRef.current) { // Check again after pause
+                        currentPageIdRef.current = null;
+                        await loadPage(nextP._id);
+                    }
+                } else {
+                    setAutoChain(false);
+                    alert('Auto-Chain complete! Reached the end of the chapter.');
+                }
+            }
         } catch (error) {
             console.error('OCR processing failed:', error);
+            if (autoChainRef.current) {
+                setAutoChain(false);
+            }
         } finally {
             setProcessing(false);
             setProcessingStatus('');
         }
-    }, [page, loadPage]);
+    }, [page, loadPage, setAutoChain]);
+
+    useEffect(() => {
+        if (autoChainRef.current && page && page.ocr_status === 'pending' && !processing) {
+            handleProcessOCR();
+        }
+    }, [page, processing, handleProcessOCR]);
 
     const hasChanges = useCallback(() => {
         return JSON.stringify(questions) !== JSON.stringify(originalQuestions);
@@ -309,6 +355,11 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             processing,
             processingStatus,
             saving,
+
+            autoChain,
+            autoChainStatus,
+            setAutoChain,
+
             loadPage,
             handleProcessOCR,
             handleSave,

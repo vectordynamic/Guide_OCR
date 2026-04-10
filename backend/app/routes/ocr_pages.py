@@ -4,6 +4,7 @@ OCR Pages API Routes
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
+from pydantic import BaseModel
 
 from app.core.database import get_ocr_pages_collection, get_questions_collection
 from app.models.schemas import OCRPageResponse, OCRPageVerify
@@ -30,8 +31,11 @@ async def get_ocr_page(page_id: str):
     return page
 
 
+class ProcessPageRequest(BaseModel):
+    model: str = "gemini-3-flash-preview"
+
 @router.post("/{page_id}/process")
-async def process_page_ocr(page_id: str):
+async def process_page_ocr(page_id: str, request: ProcessPageRequest = None):
     """
     Trigger LLM OCR processing for a page.
     
@@ -61,7 +65,8 @@ async def process_page_ocr(page_id: str):
         )
 
         # Process with LLM
-        ocr = get_ocr_processor()
+        selected_model = request.model if request else "gemini-3-flash-preview"
+        ocr = get_ocr_processor(model=selected_model)
         result = await ocr.process_image(page["image_url"])
         
         # Store result
@@ -91,7 +96,8 @@ async def process_page_ocr(page_id: str):
             from app.services.ocr_sequence_service import process_sequence
             sequence_result = await process_sequence(
                 starting_page_id=page_id,
-                starting_ocr_result=result
+                starting_ocr_result=result,
+                model=selected_model
             )
         
         response_data = {

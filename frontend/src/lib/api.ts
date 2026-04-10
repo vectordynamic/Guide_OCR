@@ -32,7 +32,8 @@ export const getChapterPages = (chapterId: string) => api.get(`/chapters/${chapt
 
 // OCR Pages
 export const getOCRPage = (id: string) => api.get(`/ocr-pages/${id}`);
-export const processPageOCR = (id: string) => api.post(`/ocr-pages/${id}/process`);
+export const processPageOCR = (id: string, model?: string) => 
+    api.post(`/ocr-pages/${id}/process`, model ? { model } : {});
 export const verifyPage = (id: string, data: { verified_json: object; continues_to_page?: string; expected_version?: number }) =>
     api.put(`/ocr-pages/${id}/verify`, data);
 export const mergePages = (pageId: string, previousPageId: string) =>

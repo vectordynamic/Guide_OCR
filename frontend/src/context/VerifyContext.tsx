@@ -31,6 +31,10 @@ interface VerifyContextType {
     autoChainStatus: string;
     setAutoChain: (val: boolean) => void;
 
+    // Model Selection
+    selectedModel: string;
+    setSelectedModel: (model: string) => void;
+
     // Actions
     loadPage: (pageId: string) => Promise<void>;
     handleProcessOCR: () => Promise<void>;
@@ -79,6 +83,9 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
     const [processing, setProcessing] = useState(false);
     const [processingStatus, setProcessingStatus] = useState<string>('');
     const [saving, setSaving] = useState(false);
+
+    // Model selection
+    const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
 
     // Crop State
     const [cropTarget, setCropTarget] = useState<CropTarget | null>(null);
@@ -150,7 +157,7 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
         setProcessing(true);
         setProcessingStatus('Analyzing page...');
         try {
-            const response = await processPageOCR(page._id);
+            const response = await processPageOCR(page._id, selectedModel);
             const sequence = response.data.sequence;
             
             if (sequence) {
@@ -189,7 +196,7 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             setProcessing(false);
             setProcessingStatus('');
         }
-    }, [page, loadPage, setAutoChain]);
+    }, [page, loadPage, setAutoChain, selectedModel]);
 
     useEffect(() => {
         if (autoChainRef.current && page && page.ocr_status === 'pending' && !processing) {
@@ -359,6 +366,9 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             autoChain,
             autoChainStatus,
             setAutoChain,
+
+            selectedModel,
+            setSelectedModel,
 
             loadPage,
             handleProcessOCR,

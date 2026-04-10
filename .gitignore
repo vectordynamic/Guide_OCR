@@ -1,0 +1,30 @@
+# Environment files
+*.env
+backend/.env
+frontend/.env
+.env.local
+.env.*.local
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node modules
+node_modules/
+.npm
+
+# Next.js / Build outputs
+.next/
+dist/
+build/
+out/
+
+# OS files
+.DS_Store
+Thumbs.db

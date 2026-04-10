@@ -277,3 +277,89 @@ TASK: Extract all questions from this image."""
                 "questions": [],
                 "error": f"Gemini API Error: {str(e)}"
             }
+
+class Gemma4Strategy(OCRStrategy):
+    """Strategy for Google Gemma 4 31B via GenAI SDK"""
+    
+    def __init__(self, api_key: str):
+        from google import genai
+        self.api_key = api_key
+        self.model = "gemma-4-31b-it"
+        self.client = genai.Client(api_key=self.api_key)
+    
+    async def process_image(self, image_url: str, continuation_context: str = None) -> Dict[str, Any]:
+        from google.genai import types
+        print(f"Using Google Gemma 4 31B (Thinking) for OCR: {image_url}")
+        
+        try:
+            prompt_text = f"{SYSTEM_PROMPT}\n\nIMPORTANT INSTRUCTIONS:\n1. **Language:** The content is in BENGALI. Preserve it EXACTLY. Do NOT translate the question text.\n2. **Data Integrity:** Do NOT truncate long text or numbers. Capture the full 'Uddipak' (Stimulus) and all equations so the question remains solvable.\n3. **Noise Filter:** Ignore page headers, footers, and 'Chapter Summary' text. Extract ONLY the questions.\n4. **Output:** Return strictly raw JSON. Do not use Markdown code blocks (no ```json wrappers).\n\nTASK: Extract all questions from this image."
+            if continuation_context:
+                prompt_text += f"\n\n{continuation_context}"
+
+            contents = [
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_uri(file_uri=image_url, mime_type="image/jpeg"),
+                        types.Part.from_text(text=prompt_text),
+                    ],
+                ),
+            ]
+            
+            generate_content_config = types.GenerateContentConfig(
+                temperature=0.15,
+                thinking_config=types.ThinkingConfig(
+                    include_thoughts=True,
+                )
+            )
+
+            # Generate content (Async)
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=contents,
+                config=generate_content_config,
+            )
+            
+            try:
+                full_response = response.text
+            except Exception as e:
+                print(f"Error accessing response.text: {e}")
+                return {"questions": [], "error": f"Model blocked response: {str(e)}"}
+            
+            print(f"Gemma 4 Response received ({len(full_response)} chars)")
+            
+            data = self._parse_json_response(full_response)
+            
+            if "questions" in data and isinstance(data["questions"], list):
+                hoisted_questions = []
+                for item in data["questions"]:
+                    if not isinstance(item, dict):
+                        hoisted_questions.append(item)
+                        continue
+                    if "questions" in item and isinstance(item["questions"], list):
+                        hoisted_questions.extend(item["questions"])
+                    else:
+                        hoisted_questions.append(item)
+                data["questions"] = hoisted_questions
+
+            if "questions" in data and isinstance(data["questions"], list):
+                for q in data["questions"]:
+                    if not isinstance(q, dict): continue
+                    raw_type = str(q.get("type", "")).lower()
+                    if any(x in raw_type for x in ["mcq", "choice", "multiple"]):
+                        q["type"] = "mcq"
+                    elif any(x in raw_type for x in ["creative", "srijonshil", "cq"]):
+                        q["type"] = "creative"
+                    else:
+                        q["type"] = "short"
+            
+            return data
+            
+        except Exception as e:
+            print(f"Gemma 4 API Error: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "questions": [],
+                "error": f"Gemma API Error: {str(e)}"
+            }

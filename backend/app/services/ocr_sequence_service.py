@@ -13,6 +13,7 @@ from app.services.ocr_processor import get_ocr_processor
 async def process_sequence(
     starting_page_id: str,
     starting_ocr_result: dict,
+    model: str = "gemini-3-flash-preview",
     max_depth: int = 5
 ) -> dict:
     """
@@ -27,7 +28,7 @@ async def process_sequence(
         "sequence_depth": int
     }
     """
-    ocr = get_ocr_processor()
+    ocr = get_ocr_processor(model=model)
     pages_collection = get_ocr_pages_collection()
     
     pages_processed = [starting_page_id]

@@ -19,6 +19,8 @@ export default function VerifyHeader() {
         autoChain,
         autoChainStatus,
         setAutoChain,
+        selectedModel,
+        setSelectedModel,
         handleProcessOCR,
         handleSave,
         questions,
@@ -57,6 +59,17 @@ export default function VerifyHeader() {
                 <div className="flex items-center gap-3">
                     {/* Actions & Navigation grouped */}
                     <div className="flex items-center gap-2">
+                        {/* Model Dropdown */}
+                        <select
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            disabled={processing || pageLoading}
+                            className="bg-gray-700 text-white text-xs rounded px-2 py-1 h-[30px] border border-gray-600 focus:outline-none focus:border-purple-500 transition-colors disabled:opacity-50"
+                        >
+                            <option value="gemini-3-flash-preview">⚡ Gemini 3 Flash</option>
+                            <option value="gemma-4-31b-it">🧠 Gemma 4 (Thinking)</option>
+                        </select>
+
                         {page.ocr_status !== 'verified' && (
                             <button
                                 onClick={handleProcessOCR}

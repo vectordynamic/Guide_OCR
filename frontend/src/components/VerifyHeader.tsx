@@ -6,6 +6,7 @@
  * Uses internal state navigation (no URL changes)
  */
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { useVerify } from '@/context/VerifyContext';
 
 export default function VerifyHeader() {
@@ -16,9 +17,8 @@ export default function VerifyHeader() {
         processing,
         processingStatus,
         saving,
-        autoChain,
-        autoChainStatus,
-        setAutoChain,
+        bgRunning,
+        startBgChain,
         selectedModel,
         setSelectedModel,
         handleProcessOCR,
@@ -31,6 +31,14 @@ export default function VerifyHeader() {
         prevPage,
         nextPage
     } = useVerify();
+
+    const [bgEndPageId, setBgEndPageId] = useState('');
+
+    useEffect(() => {
+        if (allPages.length > 0 && !bgEndPageId && currentIndex >= 0 && currentIndex < allPages.length - 1) {
+            setBgEndPageId(allPages[allPages.length - 1]._id);
+        }
+    }, [allPages, bgEndPageId, currentIndex]);
 
     // Don't render header if no page loaded yet
     if (!page) {
@@ -80,22 +88,34 @@ export default function VerifyHeader() {
                             </button>
                         )}
                         
-                        {/* Auto-Chain Toggle */}
-                        <label className="flex items-center gap-2 cursor-pointer select-none ml-2 mr-2">
-                            <div
-                                onClick={() => setAutoChain(!autoChain)}
-                                className={`relative w-10 h-5 rounded-full transition-colors duration-300 ease-in-out ${autoChain ? 'bg-green-500' : 'bg-gray-600'}`}
-                            >
-                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-300 ease-in-out ${autoChain ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        {/* BG Chain Controls */}
+                        {nextPage && page.ocr_status !== 'verified' && (
+                            <div className="flex items-center gap-1 ml-2 mr-2">
+                                <span className="text-xs text-gray-400">To:</span>
+                                <select
+                                    value={bgEndPageId}
+                                    onChange={(e) => setBgEndPageId(e.target.value)}
+                                    disabled={bgRunning || processing || pageLoading}
+                                    className="bg-gray-700 text-white text-xs rounded px-2 py-1 h-[30px] border border-gray-600 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+                                >
+                                    {allPages
+                                        .slice(currentIndex + 1)
+                                        .map(p => (
+                                            <option key={p._id} value={p._id}>
+                                                Page {p.page_number}
+                                            </option>
+                                        ))
+                                    }
+                                </select>
+                                <button
+                                    onClick={() => startBgChain(bgEndPageId)}
+                                    disabled={bgRunning || processing || !bgEndPageId || pageLoading}
+                                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs h-[30px] flex items-center gap-1 disabled:opacity-50 transition-colors"
+                                >
+                                    ▶ BG Chain
+                                </button>
                             </div>
-                            <span className="text-xs text-gray-300">Auto-Chain</span>
-                            {autoChain && autoChainStatus && (
-                                <span className="text-xs text-green-400 bg-green-900/40 border border-green-700/50 px-2 py-0.5 rounded flex items-center gap-1 shadow-sm absolute top-full mt-1 left-1/2 transform -translate-x-1/2 whitespace-nowrap z-50">
-                                    <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                                    {autoChainStatus}
-                                </span>
-                            )}
-                        </label>
+                        )}
 
                         {/* Navigation - uses internal state, NO URL change */}
                         <button

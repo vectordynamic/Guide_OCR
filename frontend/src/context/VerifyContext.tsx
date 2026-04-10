@@ -26,10 +26,13 @@ interface VerifyContextType {
     processingStatus: string;
     saving: boolean;
 
-    // Auto-Chain state
-    autoChain: boolean;
-    autoChainStatus: string;
-    setAutoChain: (val: boolean) => void;
+    // Background Chain state
+    bgRunning: boolean;
+    bgCurrentPageNum: number;
+    bgEndPageNum: number;
+    bgTotalCount: number;
+    startBgChain: (endPageId: string) => Promise<void>;
+    stopBgChain: () => void;
 
     // Model Selection
     selectedModel: string;
@@ -91,17 +94,13 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
     const [cropTarget, setCropTarget] = useState<CropTarget | null>(null);
     const [pendingImages, setPendingImages] = useState<Record<string, Blob>>({});
 
-    // Auto-Chain state
-    const [autoChain, setAutoChainState] = useState(false);
-    const [autoChainStatus, setAutoChainStatus] = useState('');
-    const autoChainRef = useRef(false);
-
-    // Sync state and ref for auto-chain
-    const setAutoChain = useCallback((val: boolean) => {
-        setAutoChainState(val);
-        autoChainRef.current = val;
-        if (!val) setAutoChainStatus('');
-    }, []);
+    // BG Chain state
+    const [bgRunning, setBgRunning] = useState(false);
+    const [bgCurrentPage, setBgCurrentPage] = useState<string | null>(null);
+    const [bgCurrentPageNum, setBgCurrentPageNum] = useState(0);
+    const [bgEndPageNum, setBgEndPageNum] = useState(0);
+    const [bgTotalCount, setBgTotalCount] = useState(0);
+    const bgCancelRef = useRef(false);
 
     // Use refs to avoid stale closures and infinite loops
     const currentPageIdRef = useRef<string | null>(null);
@@ -168,41 +167,63 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             currentPageIdRef.current = null;
             await loadPage(page._id);
 
-            // Auto-Chain Check
-            if (autoChainRef.current) {
-                const currentIdx = allPagesRef.current.findIndex(p => p._id === page._id);
-                const nextP = currentIdx !== -1 && currentIdx < allPagesRef.current.length - 1 
-                    ? allPagesRef.current[currentIdx + 1] : null;
-
-                if (nextP) {
-                    setAutoChainStatus(`Auto-advancing to page ${nextP.page_number}...`);
-                    await new Promise(res => setTimeout(res, 1000)); // 1s pause
-                    
-                    if (autoChainRef.current) { // Check again after pause
-                        currentPageIdRef.current = null;
-                        await loadPage(nextP._id);
-                    }
-                } else {
-                    setAutoChain(false);
-                    alert('Auto-Chain complete! Reached the end of the chapter.');
-                }
-            }
         } catch (error) {
             console.error('OCR processing failed:', error);
-            if (autoChainRef.current) {
-                setAutoChain(false);
-            }
         } finally {
             setProcessing(false);
             setProcessingStatus('');
         }
-    }, [page, loadPage, setAutoChain, selectedModel]);
+    }, [page, loadPage, selectedModel]);
 
-    useEffect(() => {
-        if (autoChainRef.current && page && page.ocr_status === 'pending' && !processing) {
-            handleProcessOCR();
+    const startBgChain = useCallback(async (endPageId: string) => {
+        if (!page) return;
+
+        // Build the page ID list: from current page to endPage (inclusive)
+        const currentIdx = allPagesRef.current.findIndex(p => p._id === page._id);
+        const endIdx = allPagesRef.current.findIndex(p => p._id === endPageId);
+        if (currentIdx === -1 || endIdx === -1 || endIdx < currentIdx) return;
+
+        const queue = allPagesRef.current.slice(currentIdx, endIdx + 1);
+        
+        setBgRunning(true);
+        setBgTotalCount(queue.length);
+        bgCancelRef.current = false;
+
+        for (let i = 0; i < queue.length; i++) {
+            if (bgCancelRef.current) break;
+
+            const targetPage = queue[i];
+            setBgCurrentPage(targetPage._id);
+            setBgCurrentPageNum(targetPage.page_number);
+            setBgEndPageNum(queue[queue.length - 1].page_number);
+
+            try {
+                await processPageOCR(targetPage._id, selectedModel);
+
+                // Refresh allPages list so status badges update in the background
+                const pagesRes = await getChapterPages(targetPage.chapter_id);
+                allPagesRef.current = pagesRes.data;
+                setAllPages(pagesRes.data);
+
+                // If user is currently viewing this page, reload it to show fresh data
+                if (currentPageIdRef.current === targetPage._id) {
+                    currentPageIdRef.current = null; // Force reload
+                    await loadPage(targetPage._id);
+                }
+            } catch (err) {
+                console.error(`BG OCR failed for page ${targetPage.page_number}:`, err);
+                // Continue processing next pages even if one fails
+            }
         }
-    }, [page, processing, handleProcessOCR]);
+
+        setBgRunning(false);
+        setBgCurrentPage(null);
+        bgCancelRef.current = false;
+    }, [page, selectedModel, loadPage]);
+
+    const stopBgChain = useCallback(() => {
+        bgCancelRef.current = true;
+    }, []);
 
     const hasChanges = useCallback(() => {
         return JSON.stringify(questions) !== JSON.stringify(originalQuestions);
@@ -363,9 +384,12 @@ export function VerifyProvider({ children }: VerifyProviderProps) {
             processingStatus,
             saving,
 
-            autoChain,
-            autoChainStatus,
-            setAutoChain,
+            bgRunning,
+            bgCurrentPageNum,
+            bgEndPageNum,
+            bgTotalCount,
+            startBgChain,
+            stopBgChain,
 
             selectedModel,
             setSelectedModel,

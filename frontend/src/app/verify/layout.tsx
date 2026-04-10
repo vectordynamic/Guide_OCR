@@ -7,6 +7,7 @@
 import { ReactNode } from 'react';
 import { VerifyProvider } from '@/context/VerifyContext';
 import VerifyHeader from '@/components/VerifyHeader';
+import BgChainBadge from '@/components/BgChainBadge'; // Add this line
 
 export default function VerifyLayout({ children }: { children: ReactNode }) {
     return (
@@ -17,6 +18,7 @@ export default function VerifyLayout({ children }: { children: ReactNode }) {
                 {/* Page content - only this part changes on navigation */}
                 {children}
             </div>
+            <BgChainBadge />
         </VerifyProvider>
     );
 }
